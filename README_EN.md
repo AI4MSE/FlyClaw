@@ -4,6 +4,8 @@
 
 Core value: A single data source is unreliable, incomplete, and limited in coverage -- FlyClaw's value lies in **aggregation, deduplication, gap-filling, and presentation**.
 
+[中文说明](README.md)
+
 **Author**: nuaa02@gmail.com  Xiaohongshu @深度连接
 **GitHub**: [https://github.com/AI4MSE/FlyClaw](https://github.com/AI4MSE/FlyClaw)
 **License**: [Apache-2.0](LICENSE)
