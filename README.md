@@ -4,7 +4,7 @@
 
 核心价值：单一来源不稳定、不完整、覆盖有限 -- FlyClaw 的目标是**聚合、去重、补齐、呈现**。
 
-[English](README_EN.md)
+[English Readme](README_EN.md)
 
 **作者**：nuaa02@gmail.com 小红书@深度连接
 **GitHub**：[https://github.com/AI4MSE/FlyClaw](https://github.com/AI4MSE/FlyClaw)
