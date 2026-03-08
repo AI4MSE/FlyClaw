@@ -55,9 +55,14 @@ _SORT_MAP = {
 class GoogleFlightsSource:
     """Google Flights data source with multi-level fallback."""
 
-    def __init__(self, timeout: int = 15, serpapi_key: str = ""):
+    def __init__(self, timeout: int = 15, serpapi_key: str = "",
+                 retry: int = 3,
+                 retry_delay: float = 0.5, retry_backoff: float = 2.0):
         self.timeout = timeout
         self.serpapi_key = serpapi_key
+        self.max_retries = retry
+        self.retry_delay = retry_delay
+        self.retry_backoff = retry_backoff
 
     def query_by_flight(self, flight_number: str) -> list[dict]:
         """Query by flight number using route cache.
@@ -90,7 +95,7 @@ class GoogleFlightsSource:
         *, return_date: str | None = None, adults: int = 1,
         children: int = 0, infants: int = 0,
         cabin: str = "economy", stops: int | str = 0,
-        sort: str | None = None, limit: int = 10,
+        sort: str | None = None, limit: int | None = None,
     ) -> list[dict]:
         """Search flights by route. Tries fli library first, then SerpAPI.
 
@@ -123,9 +128,38 @@ class GoogleFlightsSource:
         *, return_date: str | None = None, adults: int = 1,
         children: int = 0, infants: int = 0,
         cabin: str = "economy", stops: int | str = 0,
-        sort: str | None = None, limit: int = 10,
+        sort: str | None = None, limit: int | None = None,
     ) -> list[dict]:
-        """Level 1: fli Python library.
+        """Level 1: fli Python library with smart retry on empty results."""
+        import time as _time
+
+        attempts = self.max_retries + 1
+        for attempt in range(attempts):
+            results = self._query_via_fli_single(
+                origin, destination, date,
+                return_date=return_date, adults=adults,
+                children=children, infants=infants,
+                cabin=cabin, stops=stops, sort=sort, limit=limit,
+            )
+            if results:
+                return results
+            if attempt < attempts - 1:
+                delay = self.retry_delay * (self.retry_backoff ** attempt)
+                logger.info(
+                    "fli empty response attempt %d, retrying in %.1fs...",
+                    attempt + 1, delay,
+                )
+                _time.sleep(delay)
+        return []
+
+    def _query_via_fli_single(
+        self, origin: str | list[str], destination: str | list[str], date: str,
+        *, return_date: str | None = None, adults: int = 1,
+        children: int = 0, infants: int = 0,
+        cabin: str = "economy", stops: int | str = 0,
+        sort: str | None = None, limit: int | None = None,
+    ) -> list[dict]:
+        """Single fli query attempt (no retry).
 
         origin/destination can be str or list[str] for multi-airport queries.
         """
@@ -195,7 +229,10 @@ class GoogleFlightsSource:
             sort_by = SortBy(sort_val)
 
             fli_trip_type = TripType.ROUND_TRIP if is_round_trip else TripType.ONE_WAY
-            effective_limit = min(limit, 5) if is_round_trip else limit
+            # fli top_n: use limit if set, otherwise 200 as practical max
+            fli_top_n = limit if limit is not None else 200
+            if is_round_trip:
+                fli_top_n = min(fli_top_n, 5)
 
             filters = FlightSearchFilters(
                 passenger_info=PassengerInfo(
@@ -209,7 +246,7 @@ class GoogleFlightsSource:
                 trip_type=fli_trip_type,
             )
             sf = SearchFlights()
-            raw_results = sf.search(filters, top_n=effective_limit)
+            raw_results = sf.search(filters, top_n=fli_top_n)
         except Exception as e:
             logger.warning("fli search failed: %s", e)
             return []
@@ -223,7 +260,7 @@ class GoogleFlightsSource:
 
         results = []
         for r in raw_results:
-            if len(results) >= limit:
+            if limit is not None and len(results) >= limit:
                 break
             try:
                 if is_round_trip and isinstance(r, tuple) and len(r) == 2:
@@ -344,7 +381,7 @@ class GoogleFlightsSource:
         *, return_date: str | None = None, adults: int = 1,
         children: int = 0, infants: int = 0,
         cabin: str = "economy", stops: int | str = 0,
-        sort: str | None = None, limit: int = 10,
+        sort: str | None = None, limit: int | None = None,
     ) -> list[dict]:
         """Level 2: SerpAPI Google Flights endpoint.
 
@@ -394,7 +431,9 @@ class GoogleFlightsSource:
 
         best = data.get("best_flights", [])
         other = data.get("other_flights", [])
-        all_flights = (best + other)[:limit]
+        all_flights = best + other
+        if limit is not None:
+            all_flights = all_flights[:limit]
 
         trip_type_str = "round_trip" if is_round_trip else "one_way"
         primary_origin = origins[0].upper()
