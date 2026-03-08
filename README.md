@@ -26,7 +26,7 @@
 
 ### 安装（OpenClaw）
 
-技能文件 SKIL.md (中文）  SKILL_EN.md(英文）
+技能文件 SKILL.md (中文）  SKILL_EN.md(英文）
 技能市场安装
 
 ```bash
