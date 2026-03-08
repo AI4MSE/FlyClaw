@@ -15,6 +15,7 @@ import requests
 
 _PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 _AIRPORTS_FILE = os.path.join(_PROJECT_DIR, "cache", "airports.json")
+_INACTIVE_FILE = os.path.join(_PROJECT_DIR, "cache", "inactive_airports.json")
 
 logger = logging.getLogger("flyclaw.airport")
 
@@ -39,7 +40,8 @@ _CITY_DEFAULT = {
 class AirportManager:
     """Resolve user input (Chinese/English/IATA) to IATA airport code."""
 
-    def __init__(self, data_path: str = _AIRPORTS_FILE):
+    def __init__(self, data_path: str = _AIRPORTS_FILE,
+                 inactive_path: str = _INACTIVE_FILE):
         self._data_path = data_path
         self._airports: dict[str, dict] = {}
         # Lookup tables: lowercased key -> list of IATA codes
@@ -48,7 +50,9 @@ class AirportManager:
         self._city_en_index: dict[str, list[str]] = {} # "shanghai" -> ["PVG","SHA"]
         self._alias_index: dict[str, str] = {}         # "浦东" -> "PVG"
         self._name_cn_index: dict[str, str] = {}       # partial Chinese names
+        self._inactive_set: set[str] = set()           # inactive airport IATA codes
         self._load(data_path)
+        self._load_inactive(inactive_path)
 
     def _load(self, path: str) -> None:
         with open(path, "r", encoding="utf-8") as f:
@@ -82,14 +86,35 @@ class AirportManager:
             if name_cn:
                 self._name_cn_index[name_cn] = iata
 
-    def resolve_all(self, query: str) -> list[str]:
+    def _load_inactive(self, path: str) -> None:
+        """Load inactive airport codes from JSON file."""
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            airports = data.get("airports", {})
+            self._inactive_set = {code.upper() for code in airports}
+            logger.debug("Loaded %d inactive airports", len(self._inactive_set))
+        except (OSError, json.JSONDecodeError) as e:
+            logger.debug("Inactive airports file not loaded: %s", e)
+            self._inactive_set = set()
+
+    def is_active(self, code: str) -> bool:
+        """Return True if airport has commercial passenger flights."""
+        return code.upper() not in self._inactive_set
+
+    def resolve_all(self, query: str, *, filter_inactive: bool = True) -> list[str]:
         """Resolve user input to all matching IATA codes.
 
-        - IATA code (PVG) → ["PVG"] (exact match)
-        - Alias (浦东) → ["PVG"] (exact match)
-        - City name (上海) → ["PVG", "SHA"] (city-level, all airports)
+        - IATA code (PVG) → ["PVG"] (exact match, never filtered)
+        - Alias (浦东) → ["PVG"] (exact match, never filtered)
+        - City name (上海) → ["PVG", "SHA"] (city-level, inactive filtered)
         - City name (Shanghai) → ["PVG", "SHA"]
         - Unknown → []
+
+        When filter_inactive=True, city-level results exclude airports in
+        the inactive list (closed, non-commercial, etc.).  If all airports
+        would be filtered, returns the original unfiltered list as fallback.
+        Direct IATA / alias matches are never filtered.
         """
         q = query.strip()
         if not q:
@@ -98,11 +123,11 @@ class AirportManager:
         q_lower = q.lower()
         q_nospace = re.sub(r"\s+", "", q_lower)
 
-        # 1. Direct IATA match → single airport
+        # 1. Direct IATA match → single airport (never filter)
         if q_nospace in self._iata_index:
             return [self._iata_index[q_nospace]]
 
-        # 2. Alias match → single airport
+        # 2. Alias match → single airport (never filter)
         if q_lower in self._alias_index:
             return [self._alias_index[q_lower]]
         if q_nospace in self._alias_index:
@@ -110,22 +135,35 @@ class AirportManager:
 
         # 3. Chinese city name → all airports in that city
         if q in self._city_cn_index:
-            return list(self._city_cn_index[q])
+            return self._filter_inactive(self._city_cn_index[q], filter_inactive)
 
         # 4. English city name (with spaces) → all airports
         if q_lower in self._city_en_index:
-            return list(self._city_en_index[q_lower])
+            return self._filter_inactive(self._city_en_index[q_lower], filter_inactive)
 
         # 5. English city name (without spaces) → all airports
         if q_nospace in self._city_en_index:
-            return list(self._city_en_index[q_nospace])
+            return self._filter_inactive(self._city_en_index[q_nospace], filter_inactive)
 
-        # 6. Partial Chinese name match → single airport
+        # 6. Partial Chinese name match → single airport (never filter)
         for name, iata in self._name_cn_index.items():
             if q in name:
                 return [iata]
 
         return []
+
+    def _filter_inactive(self, codes: list[str], do_filter: bool) -> list[str]:
+        """Filter inactive airports from a city-level result list.
+
+        Returns the original list if filtering is disabled or would remove all.
+        """
+        if not do_filter or not self._inactive_set:
+            return list(codes)
+        filtered = [c for c in codes if c not in self._inactive_set]
+        if not filtered:
+            # Safety fallback: don't return empty
+            return list(codes)
+        return filtered
 
     def resolve(self, query: str) -> str | None:
         """Resolve user input to IATA code (backward compatible).

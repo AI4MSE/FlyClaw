@@ -141,11 +141,26 @@ DEFAULTS = {
             "priority": 2,
             "timeout": 15,
             "serpapi_key": "",
+            "retry": 3,
+            "retry_delay": 0.5,
+            "retry_backoff": 2.0,
         },
-        "airplanes_live": {"enabled": True, "priority": 3, "timeout": 8},
+        "skiplagged": {
+            "enabled": True, "priority": 2, "timeout": 12,
+            "retry": 3, "retry_delay": 0.5, "retry_backoff": 2.0,
+            "mcp_enabled": False,
+            "mcp_url": "https://mcp.skiplagged.com/mcp",
+        },
+        "airplanes_live": {"enabled": True, "priority": 3, "timeout": 6},
+        "fast_flights": {"enabled": False, "timeout": 15},
     },
     "cache": {"dir": "cache", "airport_update_days": 99999, "airport_update_url": ""},
-    "query": {"timeout": 20, "return_time": 12, "route_relay": True, "relay_timeout_factor": 2},
+    "query": {
+        "timeout": 20, "return_time": 8, "route_relay": True,
+        "relay_timeout": 8,
+        "filter_inactive_airports": True,
+        "relay_engines": {"google_flights": True, "skiplagged": True},
+    },
     "output": {"format": "table", "language": "both"},
 }
 

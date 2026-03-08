@@ -1,6 +1,6 @@
 # FlyClaw - Flight Information Aggregation CLI Tool
 
-**FlyClaw** is a lightweight command-line tool that aggregates flight information (dynamics, prices, schedules, etc.) using a multi-source aggregation architecture powered by open-source libraries and free public APIs, with native Chinese/English query support and native OpenClaw skill integration, covering both Chinese domestic and international flights.
+**FlyClaw** is a lightweight command-line tool that aggregates flight information (dynamics, prices, schedules, etc.) using a multi-source aggregation architecture powered by open-source libraries and free public APIs, with native Chinese/English query support and native OpenClaw skill integration, covering both Chinese domestic and international flights. Lightweight Python implementation — no browser automation, no complexity, no overhead.
 
 Core value: A single data source is unreliable, incomplete, and limited in coverage -- FlyClaw's value lies in **aggregation, deduplication, gap-filling, and presentation**.
 
@@ -12,21 +12,13 @@ Core value: A single data source is unreliable, incomplete, and limited in cover
 
 ## Features
 
-- **Multi-source aggregation**: Multi-source architecture (FR24, Google Flights, airplaneslive, extensible) powered by open-source libraries and free public APIs for flight dynamics, prices, and real-time positions
-- **Advanced search**: Round-trip, multi-passenger (adults/children/infants), cabin class (economy/premium/business/first), sorting, stop control (`--stops 0/1/2/any`), result limits
-- **Smart route relay**: Automatically queries Google Flights for prices using routes discovered from FR24/ADS-B, solving the cold-start no-price problem
-- **Smart return time**: Returns early when results are available, without waiting for slow sources (`query.return_time` config)
-- **Priority-based merging**: Higher-priority source fields take precedence; lower-priority sources fill gaps
-- **City-level search**: City name input automatically searches all airports in that city ("Shanghai"→PVG+SHA, "New York"→JFK+EWR+LGA); IATA codes/aliases resolve to a single airport
-- **Chinese/English input support**: Accepts Chinese city names ("上海", "浦东"), English names ("Shanghai", "New York"), and IATA codes ("PVG", "JFK") interchangeably
-- **7,912 airports cached**: Covers 99% of airports with IATA codes worldwide, including Chinese/English names and alias mappings (100% Chinese translation coverage, AI-verified; corrections welcome)
-- **Multi-source fault tolerance**: ADSB.lol transparent backup, user-friendly degradation warnings on source failure
-- **Field-complement merging**: Multi-source results for the same flight number are automatically merged — existing fields are not overwritten, missing fields are filled from other sources
-- **Concurrent queries**: ThreadPoolExecutor for simultaneous multi-source queries with global timeout; returns partial results on timeout
-- **Airport data updates**: Supports scheduled auto-update, manual update, and permanent disable (interface only; auto-update not yet supported, manual update available)
-- **Dual output formats**: Table (terminal-friendly) and JSON (programmatic integration)
-- **Single config file**: `config.yaml` controls source toggles, timeouts, priorities, and output format
-- **Zero API key dependency**: No registration or API key required for all core features
+- **Zero API Key Required**: No account registration needed, works out of the box, secure — and avoids the complexity, unreliability, and slowness of browser automation
+- **Multi-Source Aggregation**: FR24, Google Flights, Skiplagged, Airplanes.live — fetches flight status, prices, and live positions via open-source libraries and free public APIs, infinitely extensible.Special thanks to the above open data sources for providing convenience for public benefit and common needs!
+- **Complementary Price Sources**: Google Flights + Skiplagged queried concurrently, with support for round-trip search, multiple passengers, cabin class selection, and stopover control
+- **City-Level Smart Search**: Accepts mixed Chinese/English city names and IATA codes, auto-expands to all airports ("Shanghai" → PVG+SHA), auto-filters closed/cargo-only airports
+- **7000+ Airport Cache**: Covers 99% of IATA-coded airports worldwide, with Chinese/English names and aliases (AI-translated — corrections welcome)
+- **Smart Retry & Early Return**: Auto-retries on transient errors, returns results early without waiting for slow sources
+- **Codeshare Deduplication**: Automatically identifies and merges codeshare flights, showing only the operating carrier by default
 
 ## Quick Start
 
@@ -47,11 +39,8 @@ Or share this GitHub URL with your OpenClaw assistant to install automatically.
 conda create -n flyclaw python=3.11 -y
 conda activate flyclaw
 
-# Install dependencies
-pip install -r requirements.txt
-
-# Optional: install fli library for Google Flights data source
-pip install flights
+# Install core dependencies
+pip install requests pyyaml curl_cffi flights
 ```
 
 ### Requirements
@@ -73,25 +62,44 @@ sources:
     enabled: true
     priority: 2
     timeout: 15
-    serpapi_key: ""  # Leave empty to skip SerpAPI; fill in key to enable
+    serpapi_key: ""  # Leave empty to skip SerpAPI; fill in to auto-enable
+    retry: 2           # Smart retry on empty responses (0 = disable)
+    retry_delay: 0.5   # Initial retry wait seconds
+    retry_backoff: 2.0  # Retry wait multiplier (0.5 → 1.0 → 2.0s)
+  skiplagged:
+    enabled: true
+    priority: 2
+    timeout: 12
+    retry: 4           # Smart retry on empty responses (0 = disable)
+    retry_delay: 0.5   # Initial retry wait seconds
+    retry_backoff: 2.0  # Retry wait multiplier (0.5 → 1.0 → 2.0s)
+    mcp_enabled: false  # MCP experimental backend (default off); true = try MCP first then REST
+    mcp_url: "https://mcp.skiplagged.com/mcp"  # MCP server URL
   airplanes_live:
     enabled: true
     priority: 3
-    timeout: 8
+    timeout: 6
+  fast_flights:
+    enabled: false  # Optional: only used with --compare flag
+    timeout: 15
 
 cache:
   dir: cache
-  airport_update_days: 99999  # Auto-update interval (days); 99999 = off; 0 = disable
-  airport_update_url: ""      # Custom update URL; empty = use built-in default
+  airport_update_days: 99999  # Auto-update disabled by default (pre-built data); 0 = disable, 30 = monthly
+  airport_update_url: ""   # Custom update URL; empty = use built-in default URL
 
 query:
-  timeout: 20      # Global query timeout (seconds)
-  return_time: 12  # Smart return time (seconds); 0 = disable
-  route_relay: true           # Route relay toggle: auto-fetch prices
-  relay_timeout_factor: 2     # Timeout multiplier
+  timeout: 20      # Global query timeout in seconds (per-source timeouts still apply)
+  return_time: 12   # Smart return: return early when results available (seconds); 0 = disable
+  filter_inactive_airports: true  # Filter out closed/non-commercial airports from multi-airport queries
+  route_relay: true           # Enable route relay: auto-query price sources when flight route discovered
+  relay_timeout: 8            # Relay-specific timeout in seconds (fast fail)
+  relay_engines:              # Which engines to use for route relay price lookup
+    google_flights: true
+    skiplagged: true
 
 output:
-  format: table  # table / json
+  format: json  # table / json
   language: both  # cn / en / both
 ```
 
@@ -100,6 +108,9 @@ output:
 ```bash
 # Query by flight number (multi-source concurrent)
 conda run -n flyclaw python flyclaw.py query --flight CA981
+
+# Query by flight number, filter by date
+conda run -n flyclaw python flyclaw.py query --flight CA981 --date 2026-04-01
 
 # Search by route (with prices) — city-level search covers all airports automatically
 conda run -n flyclaw python flyclaw.py search --from Shanghai --to "New York" --date 2026-04-01
@@ -145,9 +156,30 @@ conda run -n flyclaw python flyclaw.py update-airports --url http://example.com/
 | `--children` | — | 0 | Number of children |
 | `--infants` | — | 0 | Number of infants |
 | `--cabin` | `-C` | economy | Cabin: economy/premium/business/first |
-| `--limit` | `-l` | Smart | Maximum results (99 nonstop, 20 with-stops, user override) |
+| `--limit` | `-l` | No limit | Maximum results (returns all by default, truncates when specified) |
 | `--sort` | `-s` | — | Sort: cheapest/fastest/departure/arrival |
 | `--stops` | — | 0 | Stop control: 0=nonstop/1/2/any |
+### Debug Features (for developers, regular users can ignore)
+
+These features are for development debugging only and require additional optional dependencies. **OpenClaw skill users should NOT install** mcp, fast-flights, or playwright debug dependencies.
+
+**MCP backend** is experimental and disabled by default (`mcp_enabled: false`). It adds ~8s handshake latency and is not needed for regular use.
+
+**Cross-verification**: `--compare` flag compares fli vs fast-flights v3 results with flight number matching:
+
+```bash
+# Requires: pip install fast-flights>=3.0rc0
+conda run -n flyclaw python flyclaw.py search --from PVG --to CAN --date 2026-04-01 --compare
+```
+
+**Browser baseline verification**: `--browser` with `--compare` launches Playwright browser for three-way verification:
+
+```bash
+# Requires: pip install playwright && playwright install chromium
+conda run -n flyclaw python flyclaw.py search --from PVG --to CAN --date 2026-04-01 --compare --browser
+```
+
+Without fast-flights / playwright installed, `--compare` / `--browser` will show install instructions without affecting normal usage.
 
 ### Sample Output
 
@@ -180,7 +212,11 @@ FlyClaw uses a multi-source aggregation architecture powered by open-source libr
 |-----------|---------|---------|---------|
 | requests | >=2.28.0 | Apache-2.0 | HTTP requests |
 | pyyaml | >=6.0 | MIT | YAML config parsing |
-| flights (fli) | latest | MIT | Google Flights queries (optional) |
+| curl_cffi | >=0.5.0 | MIT | Skiplagged API requests |
+| flights (fli) | latest | MIT | Google Flights queries (required, GF enabled by default) |
+| mcp | >=1.26.0 | MIT | Skiplagged MCP backend (experimental, default off, not needed for regular use) |
+| fast-flights | >=3.0rc0 | MIT | --compare cross-verification (optional, debug) |
+| playwright | latest | Apache-2.0 | --compare --browser browser verification (optional, debug) |
 
 Python: 3.11+
 
@@ -190,7 +226,7 @@ Python: 3.11+
 - **No API key required** for all core features
 - For study and research purposes only. Please comply with local laws
 - Google Flights may not be available in some regions (e.g. mainland China)
-- Chinese domestic flight coverage may be incomplete due to free public data source limitations
+- Prices from different data sources (Google Flights, Skiplagged) may vary (tax-inclusive/exclusive, cabin differences) — for reference only
 - No personal data is collected, stored, or transmitted
 
 ## License
