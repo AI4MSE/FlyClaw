@@ -40,17 +40,17 @@ clawclub install flyclaw
 
 - 安装说明
 
-![安装说明](img/OpenClaw_Install_Instruction_CHS.jpg)
+<img src="img/OpenClaw_Install_Instruction_CHS.jpg" width="350"/>
 
 安装完成后建议先让小龙虾阅读技能文档再使用：
 
 - Debug调试说明（偶发问题）
 
-![安装调试1](img/OpenClaw_Install_Debug1_CHS.jpg) ![安装调试2](img/OpenClaw_Install_Debug2_CHS.jpg)
+<img src="img/OpenClaw_Install_Debug1_CHS.jpg" width="350"/> <img src="img/OpenClaw_Install_Debug2_CHS.jpg" width="350"/>
 
-- 实际使用示例示意 （查航班、查动态等，更多等你挖掘！）
+- 实际使用示例示意（查航班、查动态等，更多等你挖掘！）
 
-![演示1](img/OpenClaw_Demo1_CHS.jpg) ![演示2](img/OpenClaw_Demo2_CHS.jpg)
+<img src="img/OpenClaw_Demo1_CHS.jpg" width="350"/> <img src="img/OpenClaw_Demo2_CHS.jpg" width="350"/>
 
 
 ### 安装（非OpenClaw方式）
