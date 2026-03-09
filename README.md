@@ -1,8 +1,12 @@
 # FlyClaw - 航班信息聚合查询 CLI 工具
 
-**FlyClaw** 是一个轻量级航班信息查询命令行工具，基于多源聚合架构，通过开源库及免费公开 API 获取数据，在终端中聚合查询航班信息（航班动态、价格、时刻等），原生支持中英文查询，原生OpenClaw技能，覆盖中国国内及国际航班。轻量化python实现，非浏览器模拟的复杂和低效方式。
+**FlyClaw** 是一个轻量级命令行工具，基于多源聚合架构，通过开源库及免费公开 API 获取数据，在终端中聚合查询航班信息（航班动态、价格、时刻等），原生支持中英文查询，原生OpenClaw技能，覆盖中国国内及国际航班。轻量化python实现，非浏览器模拟的复杂和低效方式。
+
+**FlyClaw** is a lightweight command-line tool that aggregates flight information (dynamics, prices, schedules, etc.) using a multi-source aggregation architecture powered by open-source libraries and free public APIs, with native Chinese/English query support and native OpenClaw skill integration, covering both Chinese domestic and international flights. Lightweight Python implementation — no browser automation, no complexity, no overhead.
 
 核心价值：单一来源不稳定、不完整、覆盖有限 -- FlyClaw 的目标是**聚合、去重、补齐、呈现**。
+
+Core value: A single data source is unreliable, incomplete, and limited in coverage -- FlyClaw's value lies in **aggregation, deduplication, gap-filling, and presentation**.
 
 [English Readme](README_EN.md)
 
@@ -13,7 +17,7 @@
 ## 功能特性
 
 - **零 API Key 依赖**：无需注册账号，开箱即用，安全，同时规避浏览器模拟等复杂、不可靠和低速问题
-- **多数据源聚合**：FR24、Google Flights、Skiplagged、Airplanes.live，支持**后期无限扩展**。通过开源库及免费公开 API 获取航班动态、价格、实时位置，可无限扩展。特别感谢以上公开数据源为公益和大众需求提供的便利！
+- **多数据源聚合**：FR24、Google Flights、Skiplagged、Airplanes.live 四大数据源并发查询，通过开源库及免费公开 API 获取航班动态、价格、实时位置。**插件式架构，支持无限扩展**——每个数据源为独立模块（`sources/` 目录下一个文件）。特别感谢以上公开数据源为公益和大众需求提供的便利！
 - **多源价格互补**：Google Flights + Skiplagged 并发查询，支持往返搜索、多旅客、舱位选择、经停控制
 - **城市级智能搜索**：中英文城市名 / IATA 代码混合输入，自动展开至所有机场（"上海"→PVG+SHA），自动过滤已关闭/货运专用机场
 - **7000+ 个机场缓存**：覆盖全球 99% 有 IATA 代码的机场，含中英文名称及别名（AI 翻译，如有错误欢迎纠正）
@@ -33,6 +37,21 @@
 clawclub install flyclaw
 ```
 或告知小龙虾本github地址让它帮忙自动安装
+
+- 安装说明
+
+![安装说明](img/OpenClaw_Install_Instruction_CHS.jpg)
+
+安装完成后建议先让小龙虾阅读技能文档再使用：
+
+- Debug调试说明（偶发问题）
+
+![安装调试1](img/OpenClaw_Install_Debug1_CHS.jpg) ![安装调试2](img/OpenClaw_Install_Debug2_CHS.jpg)
+
+- 实际使用示例示意 （查航班、查动态等，更多等你挖掘！）
+
+![演示1](img/OpenClaw_Demo1_CHS.jpg) ![演示2](img/OpenClaw_Demo2_CHS.jpg)
+
 
 ### 安装（非OpenClaw方式）
 
@@ -104,7 +123,7 @@ output:
 ### 使用示例
 
 ```bash
-# 按航班号查询（三源并发）
+# 按航班号查询（多源并发）
 conda run -n flyclaw python flyclaw.py query --flight CA981
 
 # 按航班号查询，过滤指定日期
@@ -161,7 +180,7 @@ conda run -n flyclaw python flyclaw.py update-airports --url http://example.com/
 
 以下功能仅用于开发调试，需安装额外可选依赖，普通用户无需安装。**OpenClaw 技能用户不要安装** mcp、fast-flights、playwright 等调试依赖。
 
-**MCP 后端**为实验功能，默认关闭（`mcp_enabled: false`），有额外 ~8s 握手延迟，普通用户无需开启。
+**MCP 后端**为实验功能，默认关闭（`mcp_enabled: false`），有额外握手延迟，普通用户无需开启。
 
 **交叉验证**：`--compare` 标志，用 fast-flights v3 对比 fli 的查询结果，支持航班号匹配：
 
