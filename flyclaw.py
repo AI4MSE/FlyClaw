@@ -721,7 +721,7 @@ def cmd_query(args):
     if relay_enabled and results and not _has_price(results):
         route = _extract_relay_route(results, args.flight)
         if route:
-            remaining = relay_timeout - phase1_elapsed
+            remaining = relay_timeout
             relay_date = _extract_relay_date(
                 results, getattr(args, "date", None)
             )
@@ -763,7 +763,7 @@ def cmd_query(args):
                 )
                 task_names.extend(t[0] for t in relay_tasks)
                 relay_results = _execute_concurrent_queries(
-                    relay_tasks, int(remaining)
+                    relay_tasks, int(remaining), return_time=1
                 )
                 results.extend(relay_results)
 
@@ -785,6 +785,9 @@ def cmd_query(args):
                   if _extract_date(r.get("scheduled_departure")) == filter_date]
 
     if args.output == "json":
+        for r in merged:
+            if r.get("price") is not None:
+                r.setdefault("currency", "USD")
         print(json.dumps(merged, indent=2, ensure_ascii=False, default=str))
     else:
         print(_format_table(merged, verbose=args.verbose))
@@ -956,6 +959,9 @@ def cmd_search(args):
         merged = merged[:effective_limit]
 
     if args.output == "json":
+        for r in merged:
+            if r.get("price") is not None:
+                r.setdefault("currency", "USD")
         print(json.dumps(merged, indent=2, ensure_ascii=False, default=str))
     else:
         print(_format_table(merged, verbose=args.verbose))

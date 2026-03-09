@@ -1,10 +1,11 @@
 ---
 name: flyclaw
 description: Flight information aggregation CLI tool -- multi-source aggregation powered by open-source libraries and free public APIs. Supports round-trip, multi-passenger, cabin class, sorting, nonstop filter. Zero API key dependency.
-version: 0.2.12
+version: 0.3.1
 icon: ✈️
 author: nuaa02@gmail.com
 license: Apache-2.0
+acceptLicenseTerms: "Apache-2.0"
 ---
 
 # FlyClaw - Flight Information Aggregation CLI Tool
@@ -30,7 +31,7 @@ Multi-source aggregation powered by open-source libraries and free public APIs t
 - **FlightRadar24**: Flight dynamics, real-time status, delays, aircraft type
 - **Airplanes.live / ADSB.lol**: ADS-B real-time positions
 
-Multi-source concurrent queries with smart merging. Special thanks to the above open data sources for providing convenience for public benefit and common needs!
+Multi-source concurrent queries with smart merging. **Plugin architecture, infinitely extensible** — each data source is an independent module; adding a new source requires only one new file with zero changes to the main program. Special thanks to the above open data sources for providing convenience for public benefit and common needs!
 
 ## Features
 

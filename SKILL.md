@@ -1,10 +1,11 @@
 ---
 name: flyclaw
-description: 航班信息聚合查询工具 -- 基于多源聚合架构，通过开源库及免费公开 API 获取航班动态、价格、时刻等信息。支持中英文输入、往返搜索、多旅客、舱位选择，覆盖国内及国际航班。零 API Key 依赖。轻量化python实现，非浏览器模拟的复杂和低效方式。Flight information aggregation CLI tool -- multi-source aggregation powered by open-source libraries and free public APIs. Supports round-trip, multi-passenger, cabin class, sorting, nonstop filter. Zero API key dependency.Lightweight Python implementation — no browser automation, no complexity, no overhead.
-version: 0.2.12
+description: 航班信息聚合查询工具[Flight information aggregation tool] 零 API Key 依赖[Zero API key dependency]。轻量化python实现，非浏览器模拟的复杂和低效方式，通过多个免费公开源 获取航班动态、价格、时刻等信息。支持中英文输入、往返搜索、多旅客、舱位选择，覆盖国内及国际航班。Flight information aggregation CLI tool -- multi-source aggregation powered by open-source libraries and free public APIs. Supports round-trip, multi-passenger, cabin class, sorting, nonstop filter. Zero API key dependency.Lightweight Python implementation — no browser automation, no complexity, no overhead.
+version: 0.3.1
 icon: ✈️
-author: 小红书@深度连接
+author: nuaa02@gmail.com 小红书@深度连接 
 license: Apache-2.0
+acceptLicenseTerms: "Apache-2.0"
 ---
 
 # FlyClaw - 航班信息聚合查询工具
@@ -30,7 +31,7 @@ license: Apache-2.0
 - **FlightRadar24**：航班动态、实时状态、延误、机型
 - **Airplanes.live / ADSB.lol**：ADS-B 实时位置
 
-多源并发查询，智能合并互补。特别感谢以上公开数据源为公益和大众需求提供的便利！
+多源并发查询，智能合并互补。**插件式架构，支持无限扩展**——每个数据源为独立模块。特别感谢以上公开数据源为公益和大众需求提供的便利！
 
 ## 功能
 
