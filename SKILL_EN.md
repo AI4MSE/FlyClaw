@@ -1,22 +1,30 @@
 ---
 name: flyclaw
-description: Flight information aggregation CLI tool -- multi-source aggregation powered by open-source libraries and free public APIs. Supports round-trip, multi-passenger, cabin class, sorting, nonstop filter. Zero API key dependency.
-version: 0.3.1
+description: 4-source flight aggregation — query, search, round-trip, cabin class, nonstop filter. Zero login, zero account, zero API key. Lightweight Python, no browser automation. 四源航班聚合查询，零登录零账号零API，支持往返/舱位/直飞筛选，查航班/机票价格/航班动态.
+version: 0.3.3
 icon: ✈️
 author: nuaa02@gmail.com
 license: Apache-2.0
 acceptLicenseTerms: "Apache-2.0"
 ---
 
-# FlyClaw - Flight Information Aggregation CLI Tool
+# FlyClaw ✈️ - Flight Information Aggregation Tool
 
-Multi-source aggregation powered by open-source libraries and free public APIs to query flight dynamics, prices, schedules, and real-time positions. Supports Chinese/English city names and IATA codes.Lightweight Python implementation — no browser automation, no complexity, no overhead.
+## Overview
+
+**4-source flight aggregation — zero login, zero account, zero API key. Lightweight Python, no browser automation.**
+
+Multi-source aggregation via open-source libraries and free public APIs for flight dynamics, prices, schedules, and real-time positions. Supports Chinese/English city names and IATA codes.
 
 **GitHub**: [https://github.com/AI4MSE/FlyClaw](https://github.com/AI4MSE/FlyClaw)
 
-**Zero API key dependency**: No registration or API key required for all core features. No personal data is collected, stored, or transmitted.
+## Zero API Key
 
-**Trigger phrases**: "query flight CA981", "flights from Shanghai to New York", "round-trip PVG to SIN", "business class Beijing to London", "nonstop flights to Singapore", "all flights including connecting", "direct flights only".
+No registration or API key required for all core features. All data stays local — no personal data collected or stored. No browser automation overhead.
+
+## Trigger
+
+Trigger when user says "query flight CA981", "flights from Shanghai to New York", "round-trip PVG to SIN", "business class Beijing to London", "nonstop flights", "all flights including connecting", etc. Default behavior is nonstop + economy.
 
 **Smart conversion rules**:
 - "all flights" / "including connecting" → `--stops any`
@@ -138,7 +146,6 @@ pip install requests pyyaml curl_cffi flights
 ## Security
 
 - **Zero API key dependency**: No API key or account registration required
-- Internal fallback channel (SerpAPI) is a hidden backup mechanism that requires no user-provided key
 - No personal data is collected, stored, or transmitted
 - All network requests are solely for querying public flight data
 
@@ -151,4 +158,12 @@ pip install requests pyyaml curl_cffi flights
 
 ---
 
-**License**: [Apache-2.0](LICENSE) | **Author**: nuaa02@gmail.com xiaohongshu@深度连接
+## Author
+
+Community-driven, open-source skill — free for everyone.
+
+- **Email**: nuaa02@gmail.com
+- **Xiaohongshu (小红书)**: @深度连接
+- **GitHub**: [AI4MSE](https://github.com/AI4MSE)
+
+**License**: [Apache-2.0](LICENSE)

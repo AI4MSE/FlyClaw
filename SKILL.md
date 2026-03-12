@@ -1,30 +1,45 @@
 ---
 name: flyclaw
-description: 航班信息聚合查询工具[Flight information aggregation tool] 零 API Key 依赖[Zero API key dependency]。轻量化python实现，非浏览器模拟的复杂和低效方式，通过多个免费公开源 获取航班动态、价格、时刻等信息。支持中英文输入、往返搜索、多旅客、舱位选择，覆盖国内及国际航班。Flight information aggregation CLI tool -- multi-source aggregation powered by open-source libraries and free public APIs. Supports round-trip, multi-passenger, cabin class, sorting, nonstop filter. Zero API key dependency.Lightweight Python implementation — no browser automation, no complexity, no overhead.
-version: 0.3.1
+description: 4-source flight aggregation — tickets, nonstop, round-trip, cabin. 航班机票/零登录/零API, zero login, zero account, zero API key. Pure Python, no browser. 机票价格/航班动态/直飞筛选.
+version: 0.3.3
 icon: ✈️
-author: nuaa02@gmail.com 小红书@深度连接 
+author: nuaa02@gmail.com
 license: Apache-2.0
 acceptLicenseTerms: "Apache-2.0"
 ---
 
-# FlyClaw - 航班信息聚合查询工具
+# FlyClaw ✈️ - 航班信息聚合查询工具 / Flight Information Aggregation Tool
+
+## 概述 / Overview
+
+**四源航班聚合查询 — 零登录、零账号、零 API Key，轻量 Python 实现。**
+**4-source flight aggregation — zero login, zero account, zero API key. Lightweight Python, no browser automation.**
 
 基于多源聚合架构，通过开源库及免费公开 API 获取航班动态、价格、时刻、实时位置等信息。支持中英文城市名和 IATA 代码输入。
 
+Multi-source aggregation via open-source libraries and free public APIs for flight dynamics, prices, schedules, and real-time positions. Supports Chinese/English city names and IATA codes.
+
 **GitHub**：[https://github.com/AI4MSE/FlyClaw](https://github.com/AI4MSE/FlyClaw)
 
-**零 API Key 依赖**：无需注册任何账号或提供任何 API Key 即可使用全部核心功能。用户本地化掌控所有，程序不收集、不存储任何用户个人信息。同时规避浏览器模拟等复杂、不可靠和低效问题。
+## 零 API Key 依赖 / Zero API Key
 
-**触发方式**：用户说"查航班 CA981"、"上海飞纽约多少钱"、"PVG 到 JFK 明天的航班"、"往返机票 上海到新加坡"、"商务舱 北京到伦敦"、"所有航班包括转机"、"直飞" 等即可自动执行。 默认查询行为是直飞+经济舱。
+无需注册任何账号或提供任何 API Key 即可使用全部核心功能。用户本地化掌控所有，程序不收集、不存储任何用户个人信息。同时规避浏览器模拟等复杂、不可靠和低效问题。
 
-**智能转换规则**：
+No registration or API key required. All data stays local — no personal data collected or stored. No browser automation overhead.
+
+## 触发方式 / Trigger
+
+用户说"查航班 CA981"、"上海飞纽约多少钱"、"PVG 到 JFK 明天的航班"、"往返机票 上海到新加坡"、"商务舱 北京到伦敦"、"所有航班包括转机"、"直飞" 等即可自动执行。默认查询行为是直飞+经济舱。
+
+Trigger when user says "query flight CA981", "flights from Shanghai to New York", "round-trip PVG to SIN", "business class Beijing to London", "nonstop flights", "all flights including connecting", etc. Default behavior is nonstop + economy.
+
+**智能转换规则 / Smart Conversion Rules**：
 - 用户说"所有航班"/"包括转机"/"包括非直飞" → `--stops any`
 - 用户说"直飞"/"不要转机" → `--stops 0`（默认）
 - 用户说"最多一次中转" → `--stops 1`
 - 用户说"最多两次中转" → `--stops 2`
 
-## 数据来源
+## 数据来源 / Data Sources
 
 - **Google Flights**：国内外国际航班价格、时刻
 - **Skiplagged**：国内外国际航班价格、时刻
@@ -33,7 +48,7 @@ acceptLicenseTerms: "Apache-2.0"
 
 多源并发查询，智能合并互补。**插件式架构，支持无限扩展**——每个数据源为独立模块。特别感谢以上公开数据源为公益和大众需求提供的便利！
 
-## 功能
+## 功能 / Features
 
 1. **按航班号查询**：查询指定航班的动态信息（状态、时刻、延误、机型等）
 2. **按航线搜索**：查询两地之间的航班列表（含价格、经停、时长等）
@@ -41,7 +56,7 @@ acceptLicenseTerms: "Apache-2.0"
 4. **高级搜索**：往返搜索、多旅客配置、舱位选择、排序、直飞过滤
 5. **中英文输入**：支持中文城市名、英文名、IATA 代码，7912 机场全覆盖
 
-## 重要：输出格式与多日查询
+## 重要：输出格式与多日查询 / Output Format & Multi-Day Queries
 
 **默认输出为 JSON**（stdout），直接 `json.loads()` 即可解析，示例：
 ```json
@@ -51,7 +66,7 @@ acceptLicenseTerms: "Apache-2.0"
 
 **多日查询**：search 命令每次只查一天。查询一周最低价等场景，需拆成多个日期**并发执行**，分别获取 JSON 结果后自行合并比较。
 
-## 调用方式
+## 调用方式 / Usage
 
 ### 按航班号查询
 
@@ -125,7 +140,7 @@ python flyclaw.py query --flight CA981 --no-relay
 - `-o table`：表格格式输出（默认为 JSON）
 - `-v`：详细模式，显示数据来源和舱位
 
-## 输入示例
+## 输入示例 / Input Examples
 
 | 用户说 | 解析为 | 说明 |
 |--------|--------|------|
@@ -136,7 +151,7 @@ python flyclaw.py query --flight CA981 --no-relay
 | "北京" | PEK + PKX + NAY | 城市级：搜索所有北京机场 |
 | "Shanghai" | PVG + SHA | 英文城市名同样支持 |
 
-## 安装配置
+## 安装配置 / Installation
 
 ```bash
 pip install requests pyyaml curl_cffi flights
@@ -147,14 +162,13 @@ pip install requests pyyaml curl_cffi flights
 
 **依赖**：Python 3.11+、`requests`（Apache-2.0）、`pyyaml`（MIT）、`curl_cffi`（MIT）、`flights`（MIT）。
 
-## 安全性
+## 安全性 / Security
 
 - **零 API Key 依赖**：程序运行不需要用户提供任何 API Key 或注册任何账号
-- **程序内部备用通道**（SerpAPI）为隐藏备用机制，不需要用户提供任何 key，用户无需关注
 - 程序不收集、不存储任何用户个人信息
 - 所有网络请求仅用于查询公开航班数据
 
-## 免责声明
+## 免责声明 / Disclaimer
 
 - 本工具基于多源聚合架构，通过开源库及免费公开 API 获取数据
 - 仅供学习研究用途，请遵守当地法律法规
@@ -163,4 +177,12 @@ pip install requests pyyaml curl_cffi flights
 
 ---
 
-**许可证**：[Apache-2.0](LICENSE) | **作者**：nuaa02@gmail.com
+## 作者 / Author
+
+公益技能，免费开源。 / Community-driven, open-source, free for everyone.
+
+- **Email**: nuaa02@gmail.com
+- **小红书 / Xiaohongshu**: @深度连接
+- **GitHub**: [AI4MSE](https://github.com/AI4MSE)
+
+**许可证 / License**：[Apache-2.0](LICENSE)
