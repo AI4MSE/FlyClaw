@@ -29,6 +29,29 @@ logger = logging.getLogger("flyclaw")
 # Field merge logic
 # ---------------------------------------------------------------------------
 
+def _normalize_flight_number(fn: str) -> str:
+    """Normalize flight number by stripping leading zeros from numeric part.
+
+    Examples: IJ004→IJ4, CA0981→CA981, 3U0088→3U88.
+    Handles airline codes like "3U" (digit + letter).
+    Needed because Fliggy pads numeric part with zeros while GF/SK do not.
+    """
+    if not fn:
+        return fn
+    # Airline code is 2-3 chars (may start with digit, e.g. "3U", "9C")
+    # Find the boundary: last non-digit before the all-digit tail
+    # Strategy: find the longest trailing digit-only suffix
+    i = len(fn)
+    while i > 0 and fn[i - 1].isdigit():
+        i -= 1
+    if i == 0 or i == len(fn):
+        return fn  # All digits or no digits — can't normalize
+    prefix = fn[:i]
+    numeric = fn[i:]
+    stripped = numeric.lstrip("0") or "0"
+    return prefix + stripped
+
+
 def _get_source_priority(record: dict) -> int:
     """Return the configured priority for a record's source.
 
@@ -53,18 +76,28 @@ def _extract_date(iso_str: str | None) -> str:
 def _merge_records(records: list[dict], *, date_aware: bool = False) -> list[dict]:
     """Merge records from different sources for the same flight.
 
-    Strategy: sort by source priority (high-priority first), then group
-    by flight_number and fill missing fields from lower-priority sources.
-    Records without flight_number are kept as-is.
+    Strategy: normalize flight numbers, sort by source priority (high-priority
+    first), then group by flight_number and fill missing fields from
+    lower-priority sources.  Records without flight_number are kept as-is.
+
+    After standard merge, picks the **lowest price** across all sources for
+    each merged flight (comparing in USD for cross-currency fairness).
 
     Args:
         date_aware: If True, group by flight_number + date (from
             scheduled_departure).  This preserves multi-day records
             returned by FR24 for the same flight number.
     """
+    # Normalize flight numbers before merge (IJ004→IJ4, CA0981→CA981)
+    for rec in records:
+        fn = rec.get("flight_number")
+        if fn:
+            rec["flight_number"] = _normalize_flight_number(fn)
+
     sorted_records = sorted(records, key=_get_source_priority)
 
-    grouped: dict[str, dict] = {}
+    grouped: dict[str, dict] = {}       # merge_key → merged record
+    raw_groups: dict[str, list[dict]] = {}  # merge_key → all original records
     ungrouped: list[dict] = []
 
     for rec in sorted_records:
@@ -78,6 +111,9 @@ def _merge_records(records: list[dict], *, date_aware: bool = False) -> list[dic
             key = f"{fn}|{date_part}"
         else:
             key = fn
+
+        # Keep raw records for price_priority override
+        raw_groups.setdefault(key, []).append(rec)
 
         if key not in grouped:
             grouped[key] = rec.copy()
@@ -95,6 +131,47 @@ def _merge_records(records: list[dict], *, date_aware: bool = False) -> list[dic
                     existing[k] = val
 
     result = list(grouped.values()) + ungrouped
+
+    # --- Lowest price selection ---
+    # When multiple sources provide prices for the same flight, pick the
+    # lowest price (comparing in USD for cross-currency fairness).
+    # The original currency + price of the cheapest source is kept.
+    conf = cfg.get_config()
+    rate = conf.get("output", {}).get("exchange_rate_cny_usd", 7.25)
+
+    for merged_rec in result:
+        fn = merged_rec.get("flight_number", "")
+        if not fn:
+            continue
+        if date_aware:
+            dep = merged_rec.get("scheduled_departure", "")
+            date_part = dep[:10] if dep and len(dep) >= 10 else ""
+            group_key = f"{fn}|{date_part}"
+        else:
+            group_key = fn
+        raw = raw_groups.get(group_key, [])
+        if len(raw) <= 1:
+            continue  # No merge happened, nothing to override
+
+        # Find the lowest price across all sources (compare in USD)
+        best_price_usd = None
+        best_record = None
+        for r in raw:
+            p = r.get("price")
+            if p is None or p == 0:
+                continue
+            cur = r.get("currency", "USD").upper()
+            price_usd = p / rate if cur == "CNY" else p
+            if best_price_usd is None or price_usd < best_price_usd:
+                best_price_usd = price_usd
+                best_record = r
+
+        # Write lowest price (keep original currency of cheapest source)
+        merged_rec.pop("price", None)
+        merged_rec.pop("currency", None)
+        if best_record:
+            merged_rec["price"] = best_record["price"]
+            merged_rec["currency"] = best_record.get("currency", "USD")
 
     # Sort by date descending when date_aware (most recent first)
     if date_aware:
@@ -168,6 +245,40 @@ def _pick_main_flight(group: list[dict]) -> dict:
 # ---------------------------------------------------------------------------
 # Output formatting
 # ---------------------------------------------------------------------------
+
+def _apply_currency_conversion(records: list[dict], args, conf: dict) -> None:
+    """Apply currency conversion in-place based on --currency arg / config.
+
+    Ensures every priced record has a ``currency`` field, then converts
+    CNY↔USD when the target currency is not ``original``.
+    """
+    # Ensure currency field exists on all priced records
+    for r in records:
+        if r.get("price") is not None:
+            r.setdefault("currency", "USD")
+
+    out_currency = (
+        getattr(args, "currency", None)
+        or conf.get("output", {}).get("currency", "original")
+    )
+    if out_currency not in ("usd", "cny"):
+        return  # "original" — keep each source's native currency
+
+    rate = conf.get("output", {}).get("exchange_rate_cny_usd", 7.25)
+    if rate <= 0:
+        return
+
+    for r in records:
+        if r.get("price") is None:
+            continue
+        cur = r.get("currency", "USD").upper()
+        if out_currency == "usd" and cur == "CNY":
+            r["price"] = round(r["price"] / rate, 2)
+            r["currency"] = "USD"
+        elif out_currency == "cny" and cur == "USD":
+            r["price"] = round(r["price"] * rate, 2)
+            r["currency"] = "CNY"
+
 
 def _format_table(records: list[dict], verbose: bool = False) -> str:
     """Format records as a human-readable table."""
@@ -367,6 +478,26 @@ def _query_al_flight(flight_number: str, timeout: int) -> list[dict]:
     return src.query_by_flight(flight_number)
 
 
+def _query_fliggy_route(
+    origin_name: str, dest_name: str, date: str, timeout: int,
+    *, cabin: str = "economy", stops: int | str = 0,
+    limit: int | None = None, return_date: str | None = None,
+    api_key: str = "", sign_secret: str = "",
+) -> list[dict]:
+    """Wrapper: query Fliggy MCP by route (ThreadPoolExecutor compatible)."""
+    from sources.fliggy_mcp import FliggyMCPSource
+    src = FliggyMCPSource(
+        timeout=timeout,
+        api_key=api_key or None,
+        sign_secret=sign_secret or None,
+    )
+    return src.query_by_route(
+        origin_name, dest_name, date,
+        cabin=cabin, stops=stops, limit=limit,
+        return_date=return_date, timeout=timeout,
+    )
+
+
 def _query_sk_route(origin: str, dest: str, date: str, timeout: int,
                     *, stops: int | str = 0, limit: int | None = None,
                     retry: int = 3, cabin: str = "economy",
@@ -451,10 +582,23 @@ def _query_sk_route_multi(
     return all_results[:limit] if limit is not None else all_results
 
 
+def _iata_to_city_cn(iata: str) -> str:
+    """Return Chinese city name for an IATA code, fallback to the code itself.
+
+    Fliggy API accepts both IATA codes and Chinese city names, and handles
+    city-level search natively (e.g. "上海" covers both PVG and SHA).
+    """
+    info = airport_manager.get_info(iata)
+    if info:
+        return info.get("city_cn") or info.get("city_en") or iata
+    return iata
+
+
 def _execute_concurrent_queries(
     tasks: list[tuple],
     global_timeout: int,
     return_time: int | None = None,
+    sufficient_sources: list[str] | None = None,
 ) -> list[dict]:
     """Execute query tasks concurrently and collect results.
 
@@ -464,6 +608,10 @@ def _execute_concurrent_queries(
         return_time: if set, return early once this many seconds have
             elapsed AND at least one result is available.  ``None`` or
             0 disables smart-return (wait for all / global timeout).
+        sufficient_sources: if set, exit immediately when a task whose
+            name matches any entry returns results with prices.  This
+            enables "fast return" when a reliable source (e.g. Fliggy)
+            responds quickly with priced data.
 
     Returns:
         Combined list of result dicts from all successful tasks.
@@ -517,8 +665,31 @@ def _execute_concurrent_queries(
                 data = future.result()
                 results.extend(data)
                 logger.info("%s: %d results", name, len(data))
+
+                # Sufficient source: exit immediately if a trusted source
+                # returned priced results (no need to wait for others)
+                if sufficient_sources and data and not early_exit:
+                    name_lower = name.lower()
+                    for ss in sufficient_sources:
+                        # Match: config "fliggy_mcp" matches task "Fliggy"
+                        ss_key = ss.lower().replace("_", "")
+                        if ss_key in name_lower.replace("_", "") or name_lower in ss_key:
+                            has_price = any(
+                                r.get("price") is not None for r in data
+                            )
+                            if has_price:
+                                logger.info(
+                                    "Sufficient source '%s': %d results with "
+                                    "prices, skipping remaining sources",
+                                    name, len(data),
+                                )
+                                early_exit = True
+                                break
             except Exception as e:
                 logger.warning("%s query failed: %s", name, e)
+
+        if early_exit:
+            break
 
         # Smart return: if return_time reached and we have results
         if (
@@ -568,9 +739,20 @@ def _classify_source_failures(task_names: list[str], results: list[dict]) -> dic
     )
     sk_failed = has_sk_task and not has_sk_result
 
+    has_fliggy_task = any("fliggy" in n.lower() for n in task_names)
+    has_fliggy_result = any(
+        "fliggy" in r.get("source", "").lower() for r in results
+    )
+    fliggy_failed = has_fliggy_task and not has_fliggy_result
+
     all_failed = len(results) == 0 and len(task_names) > 0
 
-    return {"google_failed": google_failed, "sk_failed": sk_failed, "all_failed": all_failed}
+    return {
+        "google_failed": google_failed,
+        "sk_failed": sk_failed,
+        "fliggy_failed": fliggy_failed,
+        "all_failed": all_failed,
+    }
 
 
 def _print_degradation_warnings(failures: dict) -> None:
@@ -588,6 +770,11 @@ def _print_degradation_warnings(failures: dict) -> None:
     if failures.get("sk_failed"):
         print(
             "[Note] Skiplagged 数据源暂时不可用 / Skiplagged source temporarily unavailable",
+            file=sys.stderr,
+        )
+    if failures.get("fliggy_failed"):
+        print(
+            "[Note] 飞猪数据源暂时不可用 / Fliggy source temporarily unavailable",
             file=sys.stderr,
         )
 
@@ -784,10 +971,9 @@ def cmd_query(args):
         merged = [r for r in merged
                   if _extract_date(r.get("scheduled_departure")) == filter_date]
 
+    _apply_currency_conversion(merged, args, conf)
+
     if args.output == "json":
-        for r in merged:
-            if r.get("price") is not None:
-                r.setdefault("currency", "USD")
         print(json.dumps(merged, indent=2, ensure_ascii=False, default=str))
     else:
         print(_format_table(merged, verbose=args.verbose))
@@ -929,8 +1115,30 @@ def cmd_search(args):
                 label = f"Skiplagged-{o}\u2192{d}" if len(origins) * len(dests) > 1 else "Skiplagged"
                 tasks.append((label, lambda t=pair_task: t(), ()))
 
+    # Fliggy MCP (city-level: one request covers all airports)
+    fg_cfg = sources_cfg.get("fliggy_mcp", {})
+    if fg_cfg.get("enabled", False) and args.date:
+        import functools
+        fg_origin = _iata_to_city_cn(origins[0])
+        fg_dest = _iata_to_city_cn(dests[0])
+        fg_timeout = fg_cfg.get("timeout", 10)
+        fg_task = functools.partial(
+            _query_fliggy_route,
+            fg_origin, fg_dest, args.date, fg_timeout,
+            cabin=args.cabin, stops=stops_val,
+            limit=effective_limit, return_date=args.return_date,
+            api_key=fg_cfg.get("api_key", ""),
+            sign_secret=fg_cfg.get("sign_secret", ""),
+        )
+        tasks.append(("Fliggy", lambda t=fg_task: t(), ()))
+
     task_names = [t[0] for t in tasks]
-    results = _execute_concurrent_queries(tasks, global_timeout, return_time)
+    ss_cfg = conf["query"].get("sufficient_source", "")
+    sufficient = [ss_cfg] if ss_cfg else None
+    results = _execute_concurrent_queries(
+        tasks, global_timeout, return_time,
+        sufficient_sources=sufficient,
+    )
 
     # Degradation warnings
     failures = _classify_source_failures(task_names, results)
@@ -958,10 +1166,9 @@ def cmd_search(args):
     if effective_limit is not None:
         merged = merged[:effective_limit]
 
+    _apply_currency_conversion(merged, args, conf)
+
     if args.output == "json":
-        for r in merged:
-            if r.get("price") is not None:
-                r.setdefault("currency", "USD")
         print(json.dumps(merged, indent=2, ensure_ascii=False, default=str))
     else:
         print(_format_table(merged, verbose=args.verbose))
@@ -1088,6 +1295,10 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument(
         "-o", "--output", choices=["table", "json"], default=None,
         help="Output format (default: from config.yaml)",
+    )
+    common.add_argument(
+        "--currency", choices=["original", "usd", "cny"], default=None,
+        help="Output currency: original (keep source currency), usd, cny (overrides config)",
     )
     common.add_argument(
         "--timeout", type=int, default=None,

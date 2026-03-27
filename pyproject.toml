@@ -4,7 +4,7 @@ build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
 name = "flyclaw"
-version = "0.3.1"
+version = "0.4.1"
 description = "Flight information aggregation CLI tool"
 readme = "README.md"
 license = {text = "Apache-2.0"}

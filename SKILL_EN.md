@@ -1,7 +1,7 @@
 ---
-name: flyclaw
-description: 4-source flight aggregation — query, search, round-trip, cabin class, nonstop filter. Zero login, zero account, zero API key. Lightweight Python, no browser automation. 四源航班聚合查询，零登录零账号零API，支持往返/舱位/直飞筛选，查航班/机票价格/航班动态.
-version: 0.3.3
+name: flyclaw (Flight N-in-1 Search Zero Login)
+description: Multi-source flight aggregation — query, search, round-trip, cabin class, nonstop filter. Zero login, zero account, zero API key. Lightweight Python, no browser automation. 四源航班聚合查询，零登录零账号零API，支持往返/舱位/直飞筛选，查航班/机票价格/航班动态.
+version: 0.4.1
 icon: ✈️
 author: nuaa02@gmail.com
 license: Apache-2.0
@@ -12,7 +12,7 @@ acceptLicenseTerms: "Apache-2.0"
 
 ## Overview
 
-**4-source flight aggregation — zero login, zero account, zero API key. Lightweight Python, no browser automation.**
+**5-source flight aggregation — zero login, zero account, zero API key. Lightweight Python, no browser automation.**
 
 Multi-source aggregation via open-source libraries and free public APIs for flight dynamics, prices, schedules, and real-time positions. Supports Chinese/English city names and IATA codes.
 
@@ -34,8 +34,9 @@ Trigger when user says "query flight CA981", "flights from Shanghai to New York"
 
 ## Data Sources
 
+- **Fliggy (飞猪)**: Domestic/International flight prices (best China domestic coverage, CNY pricing)
 - **Google Flights**: Domestic/International flight prices, schedules (via open-source fli library)
-- **Skiplagged**: Domestic/International flight prices, schedules - backup for Google Flights
+- **Skiplagged**: Domestic/International flight prices, schedules
 - **FlightRadar24**: Flight dynamics, real-time status, delays, aircraft type
 - **Airplanes.live / ADSB.lol**: ADS-B real-time positions
 
@@ -56,7 +57,7 @@ Multi-source concurrent queries with smart merging. **Plugin architecture, infin
 ```json
 [{"flight_number": "CA981", "price": 472.0, "origin_iata": "PVG", "destination_iata": "GVA", ...}]
 ```
-Empty result returns `[]`. Errors and logs go to stderr only — never mixed into JSON. Prices are in **USD** by default. Use `-o table` for human-readable output.
+Empty result returns `[]`. Errors and logs go to stderr only — never mixed into JSON. **Prices default to CNY (Chinese Yuan)**, with each record containing a `currency` field. Use `--currency usd` to convert all prices to USD, or `--currency cny` (default). Exchange rate configurable in `config.yaml` (default 7.25). Use `-o table` for human-readable output.
 
 **Multi-day queries**: The search command queries one date at a time. For scenarios like "cheapest day this week", split into multiple dates, run them **concurrently**, then merge and compare the JSON results yourself.
 

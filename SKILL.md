@@ -1,7 +1,7 @@
 ---
-name: flyclaw
-description: 4-source flight aggregation — tickets, nonstop, round-trip, cabin. 航班机票/零登录/零API, zero login, zero account, zero API key. Pure Python, no browser. 机票价格/航班动态/直飞筛选.
-version: 0.3.3
+name: flyclaw (Flight N-in-1 Search Zero Login)
+description: Multi-source flight aggregation — tickets, nonstop, round-trip, cabin. 航班机票/零登录/零API, zero login, zero account, zero API key. Pure Python, no browser. 机票价格/航班动态/直飞筛选.
+version: 0.4.1
 icon: ✈️
 author: nuaa02@gmail.com
 license: Apache-2.0
@@ -12,8 +12,8 @@ acceptLicenseTerms: "Apache-2.0"
 
 ## 概述 / Overview
 
-**四源航班聚合查询 — 零登录、零账号、零 API Key，轻量 Python 实现。**
-**4-source flight aggregation — zero login, zero account, zero API key. Lightweight Python, no browser automation.**
+**五源航班聚合查询 — 零登录、零账号、零 API Key，轻量 Python 实现。**
+**5-source flight aggregation — zero login, zero account, zero API key. Lightweight Python, no browser automation.**
 
 基于多源聚合架构，通过开源库及免费公开 API 获取航班动态、价格、时刻、实时位置等信息。支持中英文城市名和 IATA 代码输入。
 
@@ -41,6 +41,7 @@ Trigger when user says "query flight CA981", "flights from Shanghai to New York"
 
 ## 数据来源 / Data Sources
 
+- **飞猪 (Fliggy)**：国内外航班价格（中国国内覆盖最全，人民币计价）
 - **Google Flights**：国内外国际航班价格、时刻
 - **Skiplagged**：国内外国际航班价格、时刻
 - **FlightRadar24**：航班动态、实时状态、延误、机型
@@ -62,7 +63,7 @@ Trigger when user says "query flight CA981", "flights from Shanghai to New York"
 ```json
 [{"flight_number": "CA981", "price": 472.0, "origin_iata": "PVG", "destination_iata": "GVA", ...}]
 ```
-无结果时返回 `[]`。错误和日志仅输出到 stderr，不影响 JSON 解析。价格单位默认为**美元（USD）**。可用 `-o table` 切换为人类可读表格。
+无结果时返回 `[]`。错误和日志仅输出到 stderr，不影响 JSON 解析。**价格默认为人民币（CNY）**，每条记录含 `currency` 字段标注货币。可用 `--currency usd` 统一转换为美元，或 `--currency cny`（默认）。汇率可在 `config.yaml` 中配置（默认 7.25）。可用 `-o table` 切换为人类可读表格。
 
 **多日查询**：search 命令每次只查一天。查询一周最低价等场景，需拆成多个日期**并发执行**，分别获取 JSON 结果后自行合并比较。
 

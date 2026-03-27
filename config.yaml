@@ -29,6 +29,12 @@ sources:
     enabled: true
     priority: 3
     timeout: 6
+  fliggy_mcp:
+    enabled: true
+    priority: 2
+    timeout: 10
+    api_key: ""          # Leave empty to use built-in default key (from official open-source CLI)
+    sign_secret: ""      # Leave empty to use built-in default secret
   fast_flights:
     enabled: false  # Optional: only used with --compare flag
     timeout: 15
@@ -47,7 +53,11 @@ query:
   relay_engines:              # Which engines to use for route relay price lookup
     google_flights: true
     skiplagged: true
+  sufficient_source: fliggy_mcp  # Fast return: exit immediately when this source returns priced results
+                                  # Empty string = disable, use return_time instead
 
 output:
   format: json  # table / json
   language: both  # cn / en / both
+  currency: cny  # cny / usd / original — default CNY; AI can pass --currency usd
+  exchange_rate_cny_usd: 7.25  # Used when --currency converts between CNY and USD

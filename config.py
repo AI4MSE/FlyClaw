@@ -151,6 +151,10 @@ DEFAULTS = {
             "mcp_enabled": False,
             "mcp_url": "https://mcp.skiplagged.com/mcp",
         },
+        "fliggy_mcp": {
+            "enabled": True, "priority": 2, "timeout": 10,
+            "api_key": "", "sign_secret": "",
+        },
         "airplanes_live": {"enabled": True, "priority": 3, "timeout": 6},
         "fast_flights": {"enabled": False, "timeout": 15},
     },
@@ -160,8 +164,13 @@ DEFAULTS = {
         "relay_timeout": 8,
         "filter_inactive_airports": True,
         "relay_engines": {"google_flights": True, "skiplagged": True},
+        "sufficient_source": "fliggy_mcp",
     },
-    "output": {"format": "json", "language": "both"},
+    "output": {
+        "format": "json", "language": "both",
+        "currency": "cny",
+        "exchange_rate_cny_usd": 7.25,
+    },
 }
 
 
