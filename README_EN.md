@@ -13,8 +13,9 @@ Core value: A single data source is unreliable, incomplete, and limited in cover
 ## Features
 
 - **Zero API Key Required**: No account registration needed, works out of the box, secure — and avoids the complexity, unreliability, and slowness of browser automation
-- **Multi-Source Aggregation**: FR24, Google Flights, Skiplagged, Airplanes.live — four data sources queried concurrently, fetching flight status, prices, and live positions via open-source libraries and free public APIs. **Plugin architecture, infinitely extensible** — each data source is an independent module (one file under `sources/`);Special thanks to the above open data sources for providing convenience for public benefit and common needs!
-- **Complementary Price Sources**: Google Flights + Skiplagged queried concurrently, with support for round-trip search, multiple passengers, cabin class selection, and stopover control
+- **Multi-Source Aggregation**: Fliggy, Google Flights, Skiplagged, FR24, Airplanes.live — five data sources queried concurrently, fetching flight status, prices, and live positions via open-source libraries and free public APIs. **Plugin architecture, infinitely extensible** — each data source is an independent module (one file under `sources/`). Special thanks to the above open data sources for providing convenience for public benefit and common needs!
+- **Complementary Price Sources**: Fliggy + Google Flights + Skiplagged queried concurrently, with support for round-trip search, multiple passengers, cabin class selection, and stopover control
+- **Unified Currency Output**: Defaults to CNY (Chinese Yuan), switchable to USD via `--currency usd`. Each record includes a `currency` field
 - **City-Level Smart Search**: Accepts mixed Chinese/English city names and IATA codes, auto-expands to all airports ("Shanghai" → PVG+SHA), auto-filters closed/cargo-only airports
 - **7000+ Airport Cache**: Covers 99% of IATA-coded airports worldwide, with Chinese/English names and aliases (AI-translated — corrections welcome)
 - **Smart Retry & Early Return**: Auto-retries on transient errors, returns results early without waiting for slow sources
