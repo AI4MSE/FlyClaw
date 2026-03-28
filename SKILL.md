@@ -1,11 +1,9 @@
 ---
-name: flyclaw-flight-n-in-1-search-zero-login
-description: Multi-source flight aggregation — tickets, nonstop, round-trip, cabin. 航班机票/零登录/零API, zero login, zero account, zero API key. Pure Python, no browser. 机票价格/航班动态/直飞筛选.
-version: 0.4.1
-icon: ✈️
-author: nuaa02@gmail.com
+name: flyclaw
+description: Multi-source flight aggregation — tickets, nonstop, round-trip, cabin. Zero login, zero API key. Pure Python. 航班机票查询/价格/动态/直飞筛选.
 license: Apache-2.0
-acceptLicenseTerms: "Apache-2.0"
+metadata:
+  author: AI4MSE
 ---
 
 # FlyClaw ✈️ - 航班信息聚合查询工具 / Flight Information Aggregation Tool
