@@ -1,5 +1,5 @@
 ---
-name: flyclaw
+name: flyclaw-flight-search-zero-login
 description: Multi-source flight aggregation — tickets, nonstop, round-trip, cabin. Zero login, zero API key. Pure Python. 航班机票查询/价格/动态/直飞筛选.
 license: Apache-2.0
 metadata:
