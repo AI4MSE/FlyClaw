@@ -1,5 +1,5 @@
 ---
-name: flyclaw Flight N-in-1 Search Zero Login
+name: flyclaw-Flight-N-in-1-Search-Zero-Login
 description: Multi-source flight aggregation — tickets, nonstop, round-trip, cabin. 航班机票/零登录/零API, zero login, zero account, zero API key. Pure Python, no browser. 机票价格/航班动态/直飞筛选.
 version: 0.4.1
 icon: ✈️
