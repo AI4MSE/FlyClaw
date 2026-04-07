@@ -1,7 +1,7 @@
 ---
 name: flyclaw (Flight N-in-1 Search Zero Login)
 description: Multi-source flight aggregation — query, search, round-trip, cabin class, nonstop filter. Zero login, zero account, zero API key. Lightweight Python, no browser automation. 四源航班聚合查询，零登录零账号零API，支持往返/舱位/直飞筛选，查航班/机票价格/航班动态.
-version: 0.4.1
+version: 0.4.4
 icon: ✈️
 author: nuaa02@gmail.com
 license: Apache-2.0
@@ -31,6 +31,7 @@ Trigger when user says "query flight CA981", "flights from Shanghai to New York"
 - "nonstop" / "direct only" → `--stops 0` (default)
 - "one stop max" → `--stops 1`
 - "two stops max" → `--stops 2`
+- "layover no more than N hours" → `--layover-max-hours N`
 
 ## Data Sources
 
@@ -60,6 +61,8 @@ Multi-source concurrent queries with smart merging. **Plugin architecture, infin
 Empty result returns `[]`. Errors and logs go to stderr only — never mixed into JSON. **Prices default to CNY (Chinese Yuan)**, with each record containing a `currency` field. Use `--currency usd` to convert all prices to USD, or `--currency cny` (default). Exchange rate configurable in `config.yaml` (default 7.25). Use `-o table` for human-readable output.
 
 **Multi-day queries**: The search command queries one date at a time. For scenarios like "cheapest day this week", split into multiple dates, run them **concurrently**, then merge and compare the JSON results yourself.
+
+**Stopover segment fields**: Search results include `segments` (per-leg flight number/airports/times), `layover_cities` (list of transit cities), `layover_minutes` (layover duration per connection in minutes), `max_layover_minutes`. For nonstop flights, `segments` has length 1 and `layover_cities` is an empty list. Round-trip results (Fliggy/GF sources) also include `return_segments`, `return_layover_cities`, `return_layover_minutes`.
 
 ## Usage
 
@@ -129,6 +132,8 @@ python flyclaw.py query --flight CA981 --no-relay
 | `--limit` / `-l` | — | No limit | Max results (returns all if not specified) |
 | `--sort` / `-s` | — | — | cheapest/fastest/departure/arrival |
 | `--stops` | — | 0 | Stops: 0=nonstop/1/2/any |
+| `--layover-max-hours` | — | — | Exclude flights with any layover exceeding N hours |
+| `--currency` | — | cny | Output currency: cny/usd/original |
 
 ### Common Arguments
 
@@ -138,11 +143,11 @@ python flyclaw.py query --flight CA981 --no-relay
 ## Installation
 
 ```bash
-pip install requests pyyaml curl_cffi flights
+pip install requests pyyaml curl_cffi flights cryptography
 # Do NOT install mcp, fast-flights, or playwright — they are debug modules, not needed for normal use
 ```
 
-**Dependencies**: Python 3.11+, `requests` (Apache-2.0), `pyyaml` (MIT), `curl_cffi` (MIT), `flights` (MIT).
+**Dependencies**: Python 3.11+, `requests` (Apache-2.0), `pyyaml` (MIT), `curl_cffi` (MIT), `flights` (MIT), `cryptography` (Apache-2.0/BSD).
 
 ## Security
 

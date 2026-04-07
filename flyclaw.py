@@ -38,6 +38,7 @@ def _normalize_flight_number(fn: str) -> str:
     """
     if not fn:
         return fn
+    fn = fn.lstrip("_")  # fli enums prefix digit-starting IATA codes with "_" (e.g. "_3U" → "3U")
     # Airline code is 2-3 chars (may start with digit, e.g. "3U", "9C")
     # Find the boundary: last non-digit before the all-digit tail
     # Strategy: find the longest trailing digit-only suffix
@@ -280,6 +281,15 @@ def _apply_currency_conversion(records: list[dict], args, conf: dict) -> None:
             r["currency"] = "CNY"
 
 
+def _fmt_duration(minutes: int) -> str:
+    """Format minutes as e.g. '2h30m' or '1d3h50m'."""
+    h, m = divmod(abs(minutes), 60)
+    if h >= 24:
+        d, h = divmod(h, 24)
+        return f"{d}d{h}h{m:02d}m"
+    return f"{h}h{m:02d}m"
+
+
 def _format_table(records: list[dict], verbose: bool = False) -> str:
     """Format records as a human-readable table."""
     if not records:
@@ -341,6 +351,15 @@ def _format_table(records: list[dict], verbose: bool = False) -> str:
         if extras:
             lines.append(f"  {' | '.join(extras)}")
 
+        # Verbose: show layover path (outbound)
+        if verbose and rec.get("layover_cities"):
+            parts = [rec.get("origin_iata", "")]
+            for idx, city in enumerate(rec["layover_cities"]):
+                dur = (rec.get("layover_minutes") or [])[idx] if idx < len(rec.get("layover_minutes") or []) else 0
+                parts.append(f"({city} {_fmt_duration(dur)})")
+            parts.append(rec.get("destination_iata", ""))
+            lines.append("  Layovers: " + " → ".join(parts))
+
         # Round-trip return flight block
         if trip_type == "round_trip":
             ret_fn = rec.get("return_flight_number", "")
@@ -363,6 +382,19 @@ def _format_table(records: list[dict], verbose: bool = False) -> str:
                 ret_extras.append(f"Duration: {ret_dur}min")
             if ret_extras:
                 lines.append(f"  {' | '.join(ret_extras)}")
+            # Verbose: show return layover path
+            if verbose and rec.get("return_layover_cities"):
+                ret_segs = rec.get("return_segments") or []
+                ret_origin_iata = ret_segs[0].get("origin_iata", "") if ret_segs else ""
+                ret_dest_iata = ret_segs[-1].get("destination_iata", "") if ret_segs else ""
+                ret_lc = rec["return_layover_cities"]
+                ret_lm = rec.get("return_layover_minutes") or []
+                parts = [ret_origin_iata]
+                for idx, city in enumerate(ret_lc):
+                    dur = ret_lm[idx] if idx < len(ret_lm) else 0
+                    parts.append(f"({city} {_fmt_duration(dur)})")
+                parts.append(ret_dest_iata)
+                lines.append("  Return Layovers: " + " → ".join(parts))
 
         if verbose:
             cabin_class = rec.get("cabin_class", "")
@@ -1153,6 +1185,13 @@ def cmd_search(args):
     if not getattr(args, "show_codeshare", False):
         merged = _deduplicate_codeshares(merged)
 
+    # Layover filter: exclude flights with any layover exceeding threshold
+    if getattr(args, "layover_max_hours", None) is not None:
+        max_mins = args.layover_max_hours * 60
+        merged = [r for r in merged
+                  if r.get("stops", 0) == 0
+                  or r.get("max_layover_minutes", 0) <= max_mins]
+
     # When searching with stops (not nonstop-only) and no explicit --sort,
     # sort by stops ascending: nonstop first, then 1-stop, 2-stop...
     if args.stops != "0" and args.sort is None:
@@ -1390,6 +1429,11 @@ def build_parser() -> argparse.ArgumentParser:
     search_p.add_argument(
         "--browser", action="store_true", default=False,
         help="Use Playwright browser baseline for verification (requires --compare)",
+    )
+    search_p.add_argument(
+        "--layover-max-hours", type=float, default=None,
+        metavar="N",
+        help="Exclude flights with any layover exceeding N hours",
     )
     search_p.add_argument(
         "--show-codeshare", action="store_true", default=False,

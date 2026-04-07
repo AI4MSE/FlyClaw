@@ -15,6 +15,7 @@ Core value: A single data source is unreliable, incomplete, and limited in cover
 - **Zero API Key Required**: No account registration needed, works out of the box, secure — and avoids the complexity, unreliability, and slowness of browser automation
 - **Multi-Source Aggregation**: Fliggy, Google Flights, Skiplagged, FR24, Airplanes.live — five data sources queried concurrently, fetching flight status, prices, and live positions via open-source libraries and free public APIs. **Plugin architecture, infinitely extensible** — each data source is an independent module (one file under `sources/`). Special thanks to the above open data sources for providing convenience for public benefit and common needs!
 - **Complementary Price Sources**: Fliggy + Google Flights + Skiplagged queried concurrently, with support for round-trip search, multiple passengers, cabin class selection, and stopover control
+- **Stopover Segment Details**: Search results include a `segments` array (flight number/airports/times per leg), `layover_cities` transit city list, `layover_minutes` layover durations — supports N stopovers natively. Round-trip results include `return_segments` for the return journey
 - **Unified Currency Output**: Defaults to CNY (Chinese Yuan), switchable to USD via `--currency usd`. Each record includes a `currency` field
 - **City-Level Smart Search**: Accepts mixed Chinese/English city names and IATA codes, auto-expands to all airports ("Shanghai" → PVG+SHA), auto-filters closed/cargo-only airports
 - **7000+ Airport Cache**: Covers 99% of IATA-coded airports worldwide, with Chinese/English names and aliases (AI-translated — corrections welcome)
@@ -41,7 +42,7 @@ conda create -n flyclaw python=3.11 -y
 conda activate flyclaw
 
 # Install core dependencies
-pip install requests pyyaml curl_cffi flights
+pip install requests pyyaml curl_cffi flights cryptography
 ```
 
 ### Requirements
@@ -160,6 +161,7 @@ conda run -n flyclaw python flyclaw.py update-airports --url http://example.com/
 | `--limit` | `-l` | No limit | Maximum results (returns all by default, truncates when specified) |
 | `--sort` | `-s` | — | Sort: cheapest/fastest/departure/arrival |
 | `--stops` | — | 0 | Stop control: 0=nonstop/1/2/any |
+| `--layover-max-hours` | — | — | Exclude flights with any layover exceeding N hours (nonstop exempt) |
 ### Debug Features (for developers, regular users can ignore)
 
 These features are for development debugging only and require additional optional dependencies. **OpenClaw skill users should NOT install** mcp, fast-flights, or playwright debug dependencies.

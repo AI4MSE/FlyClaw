@@ -1,9 +1,11 @@
 ---
-name: flyclaw-flight-search-zero-login
-description: Multi-source flight aggregation — tickets, nonstop, round-trip, cabin. Zero login, zero API key. Pure Python. 航班机票查询/价格/动态/直飞筛选.
+name: flyclaw (Flight N-in-1 Search Zero Login)
+description: Multi-source flight aggregation — tickets, nonstop, round-trip, cabin. 航班机票/零登录/零API, zero login, zero account, zero API key. Pure Python, no browser. 机票价格/航班动态/直飞筛选.
+version: 0.4.4
+icon: ✈️
+author: nuaa02@gmail.com
 license: Apache-2.0
-metadata:
-  author: AI4MSE
+acceptLicenseTerms: "Apache-2.0"
 ---
 
 # FlyClaw ✈️ - 航班信息聚合查询工具 / Flight Information Aggregation Tool
@@ -36,6 +38,7 @@ Trigger when user says "query flight CA981", "flights from Shanghai to New York"
 - 用户说"直飞"/"不要转机" → `--stops 0`（默认）
 - 用户说"最多一次中转" → `--stops 1`
 - 用户说"最多两次中转" → `--stops 2`
+- 用户说"中转不超过 N 小时" → `--layover-max-hours N`
 
 ## 数据来源 / Data Sources
 
@@ -62,6 +65,8 @@ Trigger when user says "query flight CA981", "flights from Shanghai to New York"
 [{"flight_number": "CA981", "price": 472.0, "origin_iata": "PVG", "destination_iata": "GVA", ...}]
 ```
 无结果时返回 `[]`。错误和日志仅输出到 stderr，不影响 JSON 解析。**价格默认为人民币（CNY）**，每条记录含 `currency` 字段标注货币。可用 `--currency usd` 统一转换为美元，或 `--currency cny`（默认）。汇率可在 `config.yaml` 中配置（默认 7.25）。可用 `-o table` 切换为人类可读表格。
+
+**经停段字段**：搜索结果含 `segments`（各段航班号/机场/时间）、`layover_cities`（中转城市列表）、`layover_minutes`（各段停留分钟数）、`max_layover_minutes`。直飞时 `segments` 长度为 1，`layover_cities` 为空列表。往返搜索时（飞猪/GF 来源）含 `return_segments`、`return_layover_cities`、`return_layover_minutes`。
 
 **多日查询**：search 命令每次只查一天。查询一周最低价等场景，需拆成多个日期**并发执行**，分别获取 JSON 结果后自行合并比较。
 
@@ -133,6 +138,8 @@ python flyclaw.py query --flight CA981 --no-relay
 | `--limit` / `-l` | — | 不限制 | 最大结果数（不指定则返回全部） |
 | `--sort` / `-s` | — | — | cheapest/fastest/departure/arrival |
 | `--stops` | — | 0 | 经停：0=直飞/1/2/any=不限 |
+| `--layover-max-hours` | — | — | 排除最长中转超过 N 小时的航班 |
+| `--currency` | — | cny | 输出货币：cny/usd/original |
 
 ### 通用参数
 
@@ -153,7 +160,7 @@ python flyclaw.py query --flight CA981 --no-relay
 ## 安装配置 / Installation
 
 ```bash
-pip install requests pyyaml curl_cffi flights
+pip install requests pyyaml curl_cffi flights cryptography
 # 注意：不要安装 mcp、fast-flights、playwright 等调试模块，会增加安装时间且普通使用不需要
 ```
 

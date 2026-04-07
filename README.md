@@ -19,6 +19,7 @@ Core value: A single data source is unreliable, incomplete, and limited in cover
 - **零 API Key 依赖**：无需注册账号，开箱即用，安全，同时规避浏览器模拟等复杂、不可靠和低速问题
 - **多数据源聚合**：飞猪(Fliggy)、Google Flights、Skiplagged、FR24、Airplanes.live 五大数据源并发查询，通过开源库及免费公开 API 获取航班动态、价格、实时位置。**插件式架构，支持无限扩展**——每个数据源为独立模块（`sources/` 目录下一个文件）。特别感谢以上公开数据源为公益和大众需求提供的便利！
 - **多源价格互补**：飞猪 + Google Flights + Skiplagged 三源并发查价，支持往返搜索、多旅客、舱位选择、经停控制
+- **经停段详情**：搜索结果含 `segments` 数组（各段航班号/机场/时间）、`layover_cities` 中转城市列表、`layover_minutes` 停留时长，支持多次经停（N 段），往返搜索含 `return_segments` 回程段
 - **统一货币输出**：默认输出人民币（CNY），可用 `--currency usd` 切换为美元，每条记录含 `currency` 字段标注
 - **城市级智能搜索**：中英文城市名 / IATA 代码混合输入，自动展开至所有机场（"上海"→PVG+SHA），自动过滤已关闭/货运专用机场
 - **7000+ 个机场缓存**：覆盖全球 99% 有 IATA 代码的机场，含中英文名称及别名（AI 翻译，如有错误欢迎纠正）
@@ -62,7 +63,7 @@ conda create -n flyclaw python=3.11 -y
 conda activate flyclaw
 
 # 安装核心依赖
-pip install requests pyyaml curl_cffi flights
+pip install requests pyyaml curl_cffi flights cryptography
 ```
 ### 环境要求
 
@@ -192,6 +193,7 @@ conda run -n flyclaw python flyclaw.py update-airports --url http://example.com/
 | `--limit` | `-l` | 不限制 | 最大结果数（默认返回全部，指定后截断） |
 | `--sort` | `-s` | — | 排序：cheapest/fastest/departure/arrival |
 | `--stops` | — | 0 | 经停控制：0=直飞/1/2/any=不限 |
+| `--layover-max-hours` | — | — | 排除最长中转超过 N 小时的航班（直飞不受影响） |
 | `--currency` | — | cny | 输出货币：cny/usd/original |
 ### 调试功能（开发者用，普通用户无需关注）
 
