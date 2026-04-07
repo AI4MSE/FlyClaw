@@ -1,4 +1,4 @@
-"""Fliggy (飞猪) MCP data source — official Alibaba flight search API.
+"""Fliggy  MCP data source — Alibaba flight search API.
 
 Best for: flight prices (especially Chinese domestic routes),
 route-based search with comprehensive coverage.
@@ -22,10 +22,16 @@ import hashlib
 import hmac
 import json
 import logging
+import os
+import platform
+import re
 import secrets
 import time
+import uuid
+from datetime import datetime, timezone
 
 import requests
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from airport_manager import airport_manager
 
@@ -85,10 +91,88 @@ def _make_signature(
     return base64.urlsafe_b64encode(sig).rstrip(b"=").decode()
 
 
-def _make_ff_ctx() -> str:
-    """Build minimal x-ff-ctx header (base64 of gzip of JSON context)."""
-    ctx = json.dumps({"platform": "linux"}).encode("utf-8")
-    return base64.b64encode(gzip.compress(ctx)).decode()
+# ---------------------------------------------------------------------------
+# x-ff-ctx context helpers (matching flyai-cli v1.0.6 protocol)
+# ---------------------------------------------------------------------------
+
+_device_id_cache: str | None = None
+
+
+def _get_device_id() -> str:
+    """Return a stable device ID (SHA-256 hex of a UUID4), cached in cache/.device_id."""
+    global _device_id_cache
+    if _device_id_cache is not None:
+        return _device_id_cache
+
+    id_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "cache", ".device_id")
+    try:
+        with open(id_path, "r") as f:
+            did = f.read().strip()
+            if len(did) == 64:
+                _device_id_cache = did
+                return did
+    except FileNotFoundError:
+        pass
+
+    did = hashlib.sha256(uuid.uuid4().bytes).hexdigest()
+    os.makedirs(os.path.dirname(id_path), exist_ok=True)
+    with open(id_path, "w") as f:
+        f.write(did)
+    _device_id_cache = did
+    return did
+
+
+def _memory_tier_gb() -> int:
+    """Map total physical memory to a tier: 2/4/8/16/20 (matches JS Nt())."""
+    try:
+        total_bytes = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+        total_gb = total_bytes / (1024 ** 3)
+    except (ValueError, OSError):
+        return 8
+    for tier in (2, 4, 8, 16, 20):
+        if total_gb <= tier * 1.2:
+            return tier
+    return 20
+
+
+def _parse_language() -> str:
+    """Extract short language code from LANG/LC_ALL (matches JS Vt())."""
+    raw = os.environ.get("LC_ALL") or os.environ.get("LANG") or "en"
+    m = re.match(r"([a-zA-Z]{2,3}(?:[_-][a-zA-Z]{2})?)", raw)
+    return m.group(1).replace("_", "-") if m else "en"
+
+
+def _build_context() -> dict:
+    """Build the full context dict for x-ff-ctx header."""
+    mem_tier = _memory_tier_gb()
+    cpus = os.cpu_count() or 1
+    os_type = platform.system().lower()
+    arch = platform.machine()
+    os_release_major = platform.release().split(".")[0]
+    node_version = "v22.22.0"
+    lang = _parse_language()
+
+    return {
+        "machine": {
+            "platform": os_type,
+            "arch": arch,
+            "cpus": cpus,
+            "memoryTierGB": mem_tier,
+            "osType": os_type,
+            "nodeVersion": node_version,
+            "osReleaseMajor": os_release_major,
+        },
+        "fingerprint": {
+            "language": lang,
+            "platform": os_type,
+            "userAgent": f"flyai-cli/1.0.6 (Node.js {node_version}; {os_type} {arch})",
+            "hardwareConcurrency": cpus,
+            "deviceMemory": min(8, max(2, mem_tier)),
+            "clientSurface": "cli",
+            "timezoneOffset": int(datetime.now(timezone.utc).astimezone().utcoffset().total_seconds() // 60),
+            "deviceId": _get_device_id(),
+        },
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +191,23 @@ class FliggyMCPSource:
         self.timeout = timeout
         self.api_key = api_key or DEFAULT_API_KEY
         self.sign_secret = sign_secret or DEFAULT_SIGN_SECRET
+
+    # ------------------------------------------------------------------
+    # x-ff-ctx protocol
+    # ------------------------------------------------------------------
+
+    def _make_ff_ctx(self) -> str:
+        """Build x-ff-ctx header: gzip(context) optionally encrypted with AES-256-GCM."""
+        ctx_json = json.dumps(_build_context()).encode("utf-8")
+        compressed = gzip.compress(ctx_json)
+        secret = (self.sign_secret or "").strip()
+        if not secret:
+            return base64.b64encode(compressed).decode()
+        # AES-256-GCM encryption
+        key = hashlib.sha256(secret.encode("utf-8")).digest()
+        iv = os.urandom(12)
+        encrypted = AESGCM(key).encrypt(iv, compressed, None)
+        return base64.b64encode(bytes([0x01]) + iv + encrypted).decode()
 
     # ------------------------------------------------------------------
     # Public interface
@@ -177,11 +278,11 @@ class FliggyMCPSource:
 
         headers = {
             "Content-Type": "application/json",
-            "Accept": "application/json",
+            "Accept": "application/json, text/event-stream",
             "Authorization": auth,
-            "x-ff-ctx": _make_ff_ctx(),
+            "x-ff-ctx": self._make_ff_ctx(),
             "x-ttid": X_TTID,
-            "User-Agent": "flyai-cli/1.0.0",
+            "User-Agent": "flyai-cli/1.0.6",
             "x-flyai-ts": timestamp_ms,
             "x-flyai-sign-ver": SIGN_VER,
             "x-flyai-sign-alg": "hmac-sha256",
@@ -317,6 +418,24 @@ class FliggyMCPSource:
             "source": "fliggy_mcp",
         }
 
+        # Outbound segments (all legs, including direct flights with len=1)
+        seg_list = []
+        for seg in segs:
+            dep_raw = seg.get("depDateTime", "")
+            arr_raw = seg.get("arrDateTime", "")
+            seg_list.append({
+                "flight_number": seg.get("marketingTransportNo", ""),
+                "origin_iata": seg.get("depStationCode", ""),
+                "destination_iata": seg.get("arrStationCode", ""),
+                "departure": dep_raw.replace(" ", "T")[:16] if dep_raw else "",
+                "arrival": arr_raw.replace(" ", "T")[:16] if arr_raw else "",
+                "duration_minutes": int(seg.get("duration") or 0),
+            })
+        rec["segments"] = seg_list
+        rec["layover_cities"] = [s["destination_iata"] for s in seg_list[:-1]]
+        rec["layover_minutes"] = _calc_layover_minutes(seg_list)
+        rec["max_layover_minutes"] = max(rec["layover_minutes"]) if rec["layover_minutes"] else 0
+
         # Round trip: parse return journey
         if is_round_trip and len(journeys) >= 2:
             ret = journeys[1]
@@ -337,7 +456,46 @@ class FliggyMCPSource:
                 rec["return_arrival"] = ret_arr.replace(" ", "T")[:16] if ret_arr else None
                 rec["return_stops"] = len(ret_segs) - 1
                 rec["return_duration_minutes"] = ret_dur
+                # Return segments
+                ret_seg_list = []
+                for seg in ret_segs:
+                    dep_raw = seg.get("depDateTime", "")
+                    arr_raw = seg.get("arrDateTime", "")
+                    ret_seg_list.append({
+                        "flight_number": seg.get("marketingTransportNo", ""),
+                        "origin_iata": seg.get("depStationCode", ""),
+                        "destination_iata": seg.get("arrStationCode", ""),
+                        "departure": dep_raw.replace(" ", "T")[:16] if dep_raw else "",
+                        "arrival": arr_raw.replace(" ", "T")[:16] if arr_raw else "",
+                        "duration_minutes": int(seg.get("duration") or 0),
+                    })
+                rec["return_segments"] = ret_seg_list
+                rec["return_layover_cities"] = [s["destination_iata"] for s in ret_seg_list[:-1]]
+                rec["return_layover_minutes"] = _calc_layover_minutes(ret_seg_list)
+                rec["return_max_layover_minutes"] = (
+                    max(rec["return_layover_minutes"]) if rec["return_layover_minutes"] else 0
+                )
         elif is_round_trip:
             rec["trip_type"] = "round_trip"
 
         return rec
+
+
+def _calc_layover_minutes(seg_list: list) -> list[int]:
+    """Calculate ground time (minutes) between consecutive segments.
+
+    seg_list items must have 'arrival' and 'departure' as 'YYYY-MM-DDTHH:MM' strings.
+    Returns a list of length len(seg_list)-1.
+    """
+    result = []
+    fmt = "%Y-%m-%dT%H:%M"
+    for i in range(len(seg_list) - 1):
+        arr_str = seg_list[i].get("arrival", "")
+        dep_str = seg_list[i + 1].get("departure", "")
+        try:
+            arr_dt = datetime.strptime(arr_str[:16], fmt)
+            dep_dt = datetime.strptime(dep_str[:16], fmt)
+            result.append(int((dep_dt - arr_dt).total_seconds() / 60))
+        except (ValueError, TypeError):
+            result.append(0)
+    return result

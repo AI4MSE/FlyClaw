@@ -295,7 +295,8 @@ class GoogleFlightsSource:
             airline = first_leg.airline.value or ""
         if first_leg.flight_number:
             # Construct full flight number from airline code + number
-            airline_code = first_leg.airline.name if first_leg.airline else ""
+            # fli uses "_3U" naming for digit-starting IATA codes (e.g. 3U=Sichuan); strip leading "_"
+            airline_code = (first_leg.airline.name if first_leg.airline else "").lstrip("_")
             flight_number = f"{airline_code}{first_leg.flight_number}"
 
         dep_dt = first_leg.departure_datetime
@@ -312,6 +313,34 @@ class GoogleFlightsSource:
             arr_ap = last_leg.arrival_airport
             if hasattr(arr_ap, 'name'):
                 actual_dest = arr_ap.name
+
+        # Segments (use seg_origin/seg_dest to avoid shadowing outer origin/dest params)
+        seg_list = []
+        for leg in legs:
+            airline_code = (leg.airline.name if leg.airline else "").lstrip("_")
+            fn = f"{airline_code}{leg.flight_number}" if leg.flight_number else ""
+            seg_origin, seg_dest = "", ""
+            if hasattr(leg, "departure_airport") and leg.departure_airport:
+                seg_origin = getattr(leg.departure_airport, "name", "") or ""
+            if hasattr(leg, "arrival_airport") and leg.arrival_airport:
+                seg_dest = getattr(leg.arrival_airport, "name", "") or ""
+            dep_dt_seg = leg.departure_datetime
+            arr_dt_seg = leg.arrival_datetime
+            dep_str = dep_dt_seg.isoformat()[:16] if dep_dt_seg else ""
+            arr_str = arr_dt_seg.isoformat()[:16] if arr_dt_seg else ""
+            dur = int((arr_dt_seg - dep_dt_seg).total_seconds() / 60) if dep_dt_seg and arr_dt_seg else 0
+            seg_list.append({
+                "flight_number": fn,
+                "origin_iata": seg_origin,
+                "destination_iata": seg_dest,
+                "departure": dep_str,
+                "arrival": arr_str,
+                "duration_minutes": dur,
+            })
+        layover_mins = []
+        for i in range(len(legs) - 1):
+            a, d = legs[i].arrival_datetime, legs[i + 1].departure_datetime
+            layover_mins.append(int((d - a).total_seconds() / 60) if a and d else 0)
 
         return {
             "flight_number": flight_number,
@@ -331,6 +360,10 @@ class GoogleFlightsSource:
             "stops": result.stops,
             "duration_minutes": result.duration,
             "source": "google_flights",
+            "segments": seg_list if seg_list else None,
+            "layover_cities": [s["destination_iata"] for s in seg_list[:-1]] if seg_list else [],
+            "layover_minutes": layover_mins,
+            "max_layover_minutes": max(layover_mins) if layover_mins else 0,
         }
 
     def _parse_fli_round_trip(
@@ -350,7 +383,7 @@ class GoogleFlightsSource:
             ret_airline = ""
             if first_ret.airline:
                 ret_airline = first_ret.airline.value or ""
-                airline_code = first_ret.airline.name if first_ret.airline else ""
+                airline_code = (first_ret.airline.name if first_ret.airline else "").lstrip("_")
                 if first_ret.flight_number:
                     ret_fn = f"{airline_code}{first_ret.flight_number}"
 
@@ -363,6 +396,37 @@ class GoogleFlightsSource:
             record["return_arrival"] = ret_arr.isoformat() if ret_arr else None
             record["return_stops"] = inbound.stops
             record["return_duration_minutes"] = inbound.duration
+            # Return segments
+            ret_seg_list = []
+            for leg in ret_legs:
+                airline_code = (leg.airline.name if leg.airline else "").lstrip("_")
+                fn = f"{airline_code}{leg.flight_number}" if leg.flight_number else ""
+                seg_origin, seg_dest = "", ""
+                if hasattr(leg, "departure_airport") and leg.departure_airport:
+                    seg_origin = getattr(leg.departure_airport, "name", "") or ""
+                if hasattr(leg, "arrival_airport") and leg.arrival_airport:
+                    seg_dest = getattr(leg.arrival_airport, "name", "") or ""
+                dep_dt_r = leg.departure_datetime
+                arr_dt_r = leg.arrival_datetime
+                dep_str = dep_dt_r.isoformat()[:16] if dep_dt_r else ""
+                arr_str = arr_dt_r.isoformat()[:16] if arr_dt_r else ""
+                dur = int((arr_dt_r - dep_dt_r).total_seconds() / 60) if dep_dt_r and arr_dt_r else 0
+                ret_seg_list.append({
+                    "flight_number": fn,
+                    "origin_iata": seg_origin,
+                    "destination_iata": seg_dest,
+                    "departure": dep_str,
+                    "arrival": arr_str,
+                    "duration_minutes": dur,
+                })
+            ret_layover_mins = []
+            for i in range(len(ret_legs) - 1):
+                a, d = ret_legs[i].arrival_datetime, ret_legs[i + 1].departure_datetime
+                ret_layover_mins.append(int((d - a).total_seconds() / 60) if a and d else 0)
+            record["return_segments"] = ret_seg_list if ret_seg_list else None
+            record["return_layover_cities"] = [s["destination_iata"] for s in ret_seg_list[:-1]] if ret_seg_list else []
+            record["return_layover_minutes"] = ret_layover_mins
+            record["return_max_layover_minutes"] = max(ret_layover_mins) if ret_layover_mins else 0
         else:
             record["return_flight_number"] = ""
             record["return_airline"] = ""
@@ -458,9 +522,24 @@ class GoogleFlightsSource:
         legs = flight.get("flights", [])
         first = legs[0] if legs else {}
         last = legs[-1] if legs else {}
+        layovers = flight.get("layovers", [])
 
         dep_airport = first.get("departure_airport", {})
         arr_airport = last.get("arrival_airport", {})
+
+        seg_list = []
+        for leg in legs:
+            dep_ap = leg.get("departure_airport", {})
+            arr_ap = leg.get("arrival_airport", {})
+            seg_list.append({
+                "flight_number": leg.get("flight_number", ""),
+                "origin_iata": dep_ap.get("id", ""),
+                "destination_iata": arr_ap.get("id", ""),
+                "departure": dep_ap.get("time", ""),
+                "arrival": arr_ap.get("time", ""),
+                "duration_minutes": leg.get("duration", 0),
+            })
+        layover_mins = [lo.get("duration", 0) for lo in layovers]
 
         return {
             "flight_number": first.get("flight_number", ""),
@@ -477,9 +556,13 @@ class GoogleFlightsSource:
             "aircraft_type": first.get("airplane", ""),
             "delay_minutes": None,
             "price": flight.get("price"),
-            "stops": len(flight.get("layovers", [])),
+            "stops": len(layovers),
             "duration_minutes": flight.get("total_duration"),
             "source": "google_flights",
+            "segments": seg_list if seg_list else None,
+            "layover_cities": [s["destination_iata"] for s in seg_list[:-1]] if seg_list else [],
+            "layover_minutes": layover_mins,
+            "max_layover_minutes": max(layover_mins) if layover_mins else 0,
         }
 
     @staticmethod

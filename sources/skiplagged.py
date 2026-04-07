@@ -99,7 +99,11 @@ class SkiplaggedSource:
         if not data:
             return []
 
-        return self._parse_response(data, stops=stops, limit=limit, cabin=cabin)
+        results = self._parse_response(data, stops=stops, limit=limit, cabin=cabin)
+        if return_date:
+            for rec in results:
+                rec["trip_type"] = "round_trip"
+        return results
 
     def _fetch_with_retry(
         self, origin: str, destination: str, date: str,
@@ -319,6 +323,34 @@ class SkiplaggedSource:
         # Duration in minutes
         duration_minutes = _calc_duration_minutes(dep_iso, arr_iso)
 
+        # Segments — build from valid legs only (guard: isinstance + len >= 5)
+        seg_list = []
+        for leg in legs:
+            if isinstance(leg, list) and len(leg) >= 5:
+                dep_raw = _strip_tz_offset(leg[2] or "")
+                arr_raw = _strip_tz_offset(leg[4] or "")
+                seg_dur = _calc_duration_minutes(leg[2], leg[4]) or 0
+                seg_list.append({
+                    "flight_number": leg[0] or "",
+                    "origin_iata": leg[1] or "",
+                    "destination_iata": leg[3] or "",
+                    "departure": dep_raw[:16] if dep_raw else "",
+                    "arrival": arr_raw[:16] if arr_raw else "",
+                    "duration_minutes": seg_dur,
+                })
+        # Compute layover from seg_list (not raw legs) to guarantee len consistency
+        layover_mins = []
+        fmt = "%Y-%m-%dT%H:%M"
+        for i in range(len(seg_list) - 1):
+            arr_str = seg_list[i].get("arrival", "")
+            dep_str = seg_list[i + 1].get("departure", "")
+            try:
+                arr_dt = datetime.strptime(arr_str[:16], fmt)
+                dep_dt = datetime.strptime(dep_str[:16], fmt)
+                layover_mins.append(int((dep_dt - arr_dt).total_seconds() / 60))
+            except (ValueError, TypeError):
+                layover_mins.append(0)
+
         return {
             "flight_number": flight_number,
             "airline": airline_name,
@@ -338,6 +370,10 @@ class SkiplaggedSource:
             "duration_minutes": duration_minutes,
             "cabin_class": cabin,
             "source": "skiplagged",
+            "segments": seg_list if seg_list else None,
+            "layover_cities": [s["destination_iata"] for s in seg_list[:-1]] if seg_list else [],
+            "layover_minutes": layover_mins,
+            "max_layover_minutes": max(layover_mins) if layover_mins else 0,
         }
 
 
