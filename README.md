@@ -10,7 +10,7 @@ Core value: A single data source is unreliable, incomplete, and limited in cover
 
 [English Readme](README_EN.md)
 
-**作者**：nuaa02@gmail.com 小红书@深度连接
+**作者**：nuaa02@gmail.com 
 **GitHub**：[https://github.com/AI4MSE/FlyClaw](https://github.com/AI4MSE/FlyClaw)
 **许可证**：[Apache-2.0](LICENSE)
 
