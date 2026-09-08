@@ -3,7 +3,7 @@ name: flyclaw (Flight N-in-1 Search Zero Login)
 description: Multi-source flight aggregation — tickets, nonstop, round-trip, cabin. 航班机票/零登录/零API, zero login, zero account, zero API key. Pure Python, no browser. 机票价格/航班动态/直飞筛选.
 version: 0.4.4
 icon: ✈️
-author: nuaa02@gmail.com
+author: 
 license: Apache-2.0
 acceptLicenseTerms: "Apache-2.0"
 ---
@@ -187,8 +187,6 @@ pip install requests pyyaml curl_cffi flights cryptography
 
 公益技能，免费开源。 / Community-driven, open-source, free for everyone.
 
-- **Email**: nuaa02@gmail.com
-- **小红书 / Xiaohongshu**: @深度连接
 - **GitHub**: [AI4MSE](https://github.com/AI4MSE)
 
 **许可证 / License**：[Apache-2.0](LICENSE)
